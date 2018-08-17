@@ -1,14 +1,16 @@
 # --------------------------
 # USER-SPECIFIED DATA
 # --------------------------
+import time
+
 import tensorflow as tf
 import helper_batch as helper
 # Tune these parameters
 
-num_classes = 2
+num_classes = 16
 image_shape = (576, 320)
-EPOCHS = 5
-BATCH_SIZE = 8
+EPOCHS = 3
+BATCH_SIZE = 6
 DROPOUT = 0.75
 
 # Specify these directory paths
@@ -53,7 +55,7 @@ def load_vgg(image_shape):
         filters=32,
         kernel_size=[3, 3],
         padding="SAME",
-        activation=tf.nn.relu)
+        activation=tf.nn.leaky_relu)
 
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
 
@@ -62,15 +64,22 @@ def load_vgg(image_shape):
         filters=64,
         kernel_size=[4, 4],
         padding="SAME",
-        activation=tf.nn.relu)
+        activation=tf.nn.leaky_relu)
     pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4, 4], strides=4)
 
     conv3 = tf.layers.conv2d(
         inputs=pool2,
-        filters=128,
+        filters=64,
         kernel_size=[5, 5],
         padding="SAME",
-        activation=tf.nn.relu)
+        activation=tf.nn.leaky_relu)
+
+    # conv3_2 = tf.layers.conv2d(
+    #     inputs=conv3,
+    #     filters=64,
+    #     kernel_size=[3, 3],
+    #     padding="SAME",
+    #     activation=tf.nn.relu)
     pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
 
 
@@ -136,8 +145,8 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
     for epoch in range(epochs):
         # Create function to get batches
         total_loss = 0
-        for X_batch, gt_batch in get_batches_fn(batch_size):
-            print(1)
+        for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
+            print(i)
             loss, _ = sess.run([cross_entropy_loss, train_op],
                                feed_dict={input_image: X_batch, correct_label: gt_batch,
                                           keep_prob: keep_prob_value, learning_rate: learning_rate_value})
@@ -150,17 +159,10 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
 
 
 def run():
-    # Download pretrained vgg model
-    helper.maybe_download_pretrained_vgg(data_dir)
-
-    # A function to get batches
     get_batches_fn = helper.gen_batch_function(training_dir, image_shape)
-
     with tf.Session() as session:
-        # Returns the three layers, keep probability and input layer from the vgg architecture
         image_input, keep_prob, layer3, layer4, layer7 = load_vgg(image_shape)
 
-        # The resulting network architecture from adding a decoder on top of the given vgg model
         model_output = layers(layer3, layer4, layer7, num_classes)
 
         # Returns the output logits, training operation and cost operation to be used
@@ -177,13 +179,17 @@ def run():
         writer = tf.summary.FileWriter('.')
         writer.add_graph(tf.get_default_graph())
         # Train the neural network
+        start_time = time.time()
+
         train_nn(session, EPOCHS, BATCH_SIZE, get_batches_fn,
                  train_op, cross_entropy_loss, image_input,
                  correct_label, keep_prob, learning_rate)
+        elapsed_time = time.time() - start_time
 
         # Run the model with the test images and save each painted output image (roads painted green)
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input)
-
+        print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+)
         print("All done!")
 
 
