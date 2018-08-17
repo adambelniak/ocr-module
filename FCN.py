@@ -6,9 +6,9 @@ import helper_batch as helper
 # Tune these parameters
 
 num_classes = 2
-image_shape = (3024, 4032)
-EPOCHS = 40
-BATCH_SIZE = 3
+image_shape = (576, 320)
+EPOCHS = 5
+BATCH_SIZE = 8
 DROPOUT = 0.75
 
 # Specify these directory paths
@@ -22,7 +22,7 @@ vgg_path = './data/vgg'
 # PLACEHOLDER TENSORS
 # --------------------------
 
-correct_label = tf.placeholder(tf.float32, [None, 3024, 4032, num_classes])
+correct_label = tf.placeholder(tf.float32, [None, 576, 320, num_classes])
 learning_rate = tf.placeholder(tf.float32)
 keep_prob = tf.placeholder(tf.float32)
 
@@ -38,6 +38,7 @@ def load_vgg(sess, vgg_path):
     # Get Tensors to be returned from graph
     graph = tf.get_default_graph()
     image_input = graph.get_tensor_by_name('image_input:0')
+    print(image_input.shape)
     keep_prob = graph.get_tensor_by_name('keep_prob:0')
     layer3 = graph.get_tensor_by_name('layer3_out:0')
     layer4 = graph.get_tensor_by_name('layer4_out:0')
@@ -59,6 +60,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # Add a skip connection between current final layer fcn8 and 4th layer
     fcn9_skip_connected = tf.add(fcn9, layer4, name="fcn9_plus_vgg_layer4")
+    print(layer4.get_shape())
+    print(fcn9.get_shape())
 
     # Upsample again
     fcn10 = tf.layers.conv2d_transpose(fcn9_skip_connected, filters=layer3.get_shape().as_list()[-1],
@@ -100,6 +103,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         # Create function to get batches
         total_loss = 0
         for X_batch, gt_batch in get_batches_fn(batch_size):
+            print(1)
             loss, _ = sess.run([cross_entropy_loss, train_op],
                                feed_dict={input_image: X_batch, correct_label: gt_batch,
                                           keep_prob: keep_prob_value, learning_rate: learning_rate_value})
@@ -136,7 +140,8 @@ def run():
         session.run(tf.local_variables_initializer())
 
         print("Model build successful, starting training")
-
+        writer = tf.summary.FileWriter('.')
+        writer.add_graph(tf.get_default_graph())
         # Train the neural network
         train_nn(session, EPOCHS, BATCH_SIZE, get_batches_fn,
                  train_op, cross_entropy_loss, image_input,

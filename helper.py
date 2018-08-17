@@ -2,6 +2,7 @@ import os
 import shutil
 
 import imutils as imutils
+import scipy.misc
 
 import helper_batch
 import json
@@ -35,11 +36,18 @@ def retrieve_file(single_data):
 
 if __name__ == '__main__':
     # gen = helper_batch.gen_batch_function('data_road/training', (160, 576))
-    with open('95.json') as json_data:
-        d = json.load(json_data)
-        for data in d:
-            try
-            retrieve_file(data)
+    # with open('95.json') as json_data:
+    #     d = json.load(json_data)
+    #     for data in d:
+    #         try
+    #         retrieve_file(data)
+
+
+
+    image = imutils.rotate_bound(scipy.misc.imread('training_set_2/IMG_1069.JPG/origin.jpg'), 90)
+    cv2.imshow('image', image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     #
     # for i, (x, y) in enumerate(gen(1)):
     #     if i == 1:
