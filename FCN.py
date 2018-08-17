@@ -22,7 +22,7 @@ vgg_path = './data/vgg'
 # PLACEHOLDER TENSORS
 # --------------------------
 
-correct_label = tf.placeholder(tf.float32, [None, 576, 320, num_classes])
+correct_label = tf.placeholder(tf.float32, [None, 576, 320, num_classes], name="y")
 learning_rate = tf.placeholder(tf.float32)
 keep_prob = tf.placeholder(tf.float32)
 
@@ -31,20 +31,53 @@ keep_prob = tf.placeholder(tf.float32)
 # FUNCTIONS
 # --------------------------
 
-def load_vgg(sess, vgg_path):
+def load_vgg(image_shape):
     # load the model and weights
-    model = tf.saved_model.loader.load(sess, ['vgg16'], vgg_path)
+    # model = tf.saved_model.loader.load(sess, ['vgg16'], vgg_path)
+    #
+    # # Get Tensors to be returned from graph
+    # graph = tf.get_default_graph()
+    # image_input = graph.get_tensor_by_name('image_input:0')
+    # print(image_input.shape)
+    # keep_prob = graph.get_tensor_by_name('keep_prob:0')
+    # layer3 = graph.get_tensor_by_name('layer3_out:0')
+    # layer4 = graph.get_tensor_by_name('layer4_out:0')
+    # layer7 = graph.get_tensor_by_name('layer7_out:0')
 
-    # Get Tensors to be returned from graph
-    graph = tf.get_default_graph()
-    image_input = graph.get_tensor_by_name('image_input:0')
-    print(image_input.shape)
-    keep_prob = graph.get_tensor_by_name('keep_prob:0')
-    layer3 = graph.get_tensor_by_name('layer3_out:0')
-    layer4 = graph.get_tensor_by_name('layer4_out:0')
-    layer7 = graph.get_tensor_by_name('layer7_out:0')
+    x = tf.placeholder(tf.float32, shape=[None, image_shape[0], image_shape[1]])
+    input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3])
 
-    return image_input, keep_prob, layer3, layer4, layer7
+    # Convolutional Layer #1
+    conv1 = tf.layers.conv2d(
+        inputs=input_layer,
+        filters=32,
+        kernel_size=[3, 3],
+        padding="SAME",
+        activation=tf.nn.relu)
+
+    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
+
+    conv2 = tf.layers.conv2d(
+        inputs=pool1,
+        filters=64,
+        kernel_size=[4, 4],
+        padding="SAME",
+        activation=tf.nn.relu)
+    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4, 4], strides=4)
+
+    conv3 = tf.layers.conv2d(
+        inputs=pool2,
+        filters=128,
+        kernel_size=[5, 5],
+        padding="SAME",
+        activation=tf.nn.relu)
+    pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
+
+
+    keep_prob = tf.placeholder(tf.float32)
+    h_fc1_drop = tf.nn.dropout(pool3, keep_prob)
+
+    return input_layer, keep_prob, pool1, pool2, h_fc1_drop
 
 
 def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
@@ -55,24 +88,23 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     fcn8 = tf.layers.conv2d(layer7, filters=num_classes, kernel_size=1, name="fcn8")
 
     # Upsample fcn8 with size depth=(4096?) to match size of layer 4 so that we can add skip connection with 4th layer
-    fcn9 = tf.layers.conv2d_transpose(fcn8, filters=layer4.get_shape().as_list()[-1],
-                                      kernel_size=4, strides=(2, 2), padding='SAME', name="fcn9")
 
+
+    fcn9 = tf.layers.conv2d_transpose(fcn8, filters=layer4.get_shape().as_list()[-1],
+                                      kernel_size=5, strides=(2, 2), padding='SAME', name="fcn9")
     # Add a skip connection between current final layer fcn8 and 4th layer
     fcn9_skip_connected = tf.add(fcn9, layer4, name="fcn9_plus_vgg_layer4")
-    print(layer4.get_shape())
-    print(fcn9.get_shape())
 
     # Upsample again
     fcn10 = tf.layers.conv2d_transpose(fcn9_skip_connected, filters=layer3.get_shape().as_list()[-1],
-                                       kernel_size=4, strides=(2, 2), padding='SAME', name="fcn10_conv2d")
+                                       kernel_size=4, strides=(4, 4), padding='SAME', name="fcn10_conv2d")
 
     # Add skip connection
     fcn10_skip_connected = tf.add(fcn10, layer3, name="fcn10_plus_vgg_layer3")
 
     # Upsample again
     fcn11 = tf.layers.conv2d_transpose(fcn10_skip_connected, filters=num_classes,
-                                       kernel_size=16, strides=(8, 8), padding='SAME', name="fcn11")
+                                       kernel_size=16, strides=(2, 2), padding='SAME', name="fcn11")
 
     return fcn11
 
@@ -81,6 +113,8 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # Reshape 4D tensors to 2D, each row represents a pixel, each column a class
     logits = tf.reshape(nn_last_layer, (-1, num_classes), name="fcn_logits")
     correct_label_reshaped = tf.reshape(correct_label, (-1, num_classes))
+    print(logits.shape)
+    print(correct_label_reshaped.shape)
 
     # Calculate distance from actual labels using cross entropy
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label_reshaped[:])
@@ -124,7 +158,7 @@ def run():
 
     with tf.Session() as session:
         # Returns the three layers, keep probability and input layer from the vgg architecture
-        image_input, keep_prob, layer3, layer4, layer7 = load_vgg(session, vgg_path)
+        image_input, keep_prob, layer3, layer4, layer7 = load_vgg(image_shape)
 
         # The resulting network architecture from adding a decoder on top of the given vgg model
         model_output = layers(layer3, layer4, layer7, num_classes)
