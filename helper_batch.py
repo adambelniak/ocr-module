@@ -86,8 +86,17 @@ def gen_batch_function(data_folder, image_shape):
                     labels = None
 
                     for mask_path in masks_path[0:2]:
-                        gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), image_shape)
-                        gt_bg = np.all(gt_image == background_color, axis=2)
+                        gt_image = None
+                        try:
+                            gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), image_shape)
+                        except Exception as e:
+                            print(e)
+                            pass
+                        if gt_image is None:
+                            gt_bg = np.full(image_shape, False, dtype=bool)
+                        else:
+                            gt_bg = np.all(gt_image == background_color, axis=2)
+
                         gt_bg = gt_bg.reshape(*gt_bg.shape, 1)
                         if labels is None:
                             labels = gt_bg
@@ -120,7 +129,7 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
     for image_file in os.listdir(data_folder):
         image = scipy.misc.imresize(
             imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), image_shape)
-        input = (image )
+        input = (image - 125) / 255
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
             {keep_prob: 1.0, image_pl: [input]})
@@ -144,6 +153,6 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     # Run NN on test images and save them to HD
     print('Training Finished. Saving test images to: {}'.format(output_dir))
     image_outputs = gen_test_output(
-        sess, logits, keep_prob, input_image,'test', image_shape)
+        sess, logits, keep_prob, input_image, 'test', image_shape)
     for name, image in image_outputs:
         scipy.misc.imsave(os.path.join(output_dir, name), image)

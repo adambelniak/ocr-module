@@ -185,7 +185,7 @@ def run():
                  train_op, cross_entropy_loss, image_input,
                  correct_label, keep_prob, learning_rate)
         elapsed_time = time.time() - start_time
-
+        tf.saved_model.simple_save(session, './saved_model', {"image_pl": image_input, "keep_prob": keep_prob}, {"y": logits})
         # Run the model with the test images and save each painted output image (roads painted green)
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input)
         print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
