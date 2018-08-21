@@ -73,7 +73,7 @@ def gen_batch_function(data_folder, image_shape):
         """
         image_paths = os.listdir(data_folder)
 
-        background_color = np.array([0, 0, 0])
+        background_color = np.array([255, 255, 255])
         image_path = 'origin.jpg'
         masks_path = ['Box' + str(i) + '.jpg' for i in range(1, 16)]
         random.shuffle(image_paths)
@@ -82,10 +82,10 @@ def gen_batch_function(data_folder, image_shape):
             gt_images = []
             for image_file in image_paths[batch_i:batch_i+batch_size]:
                 try:
-                    image = scipy.misc.imresize(imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file, image_path)), 90), image_shape)
+                    image = (scipy.misc.imresize(imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file, image_path)), 90), image_shape) - 125) / 255
                     labels = None
 
-                    for mask_path in masks_path:
+                    for mask_path in masks_path[0:2]:
                         gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), image_shape)
                         gt_bg = np.all(gt_image == background_color, axis=2)
                         gt_bg = gt_bg.reshape(*gt_bg.shape, 1)
@@ -93,12 +93,13 @@ def gen_batch_function(data_folder, image_shape):
                             labels = gt_bg
                         else:
                             labels = np.concatenate((labels, gt_bg), axis=2)
-                    outside_doc = np.invert(np.all(labels, keepdims=True, axis=2))
-                    labels = np.concatenate((labels, np.invert(outside_doc)), axis=2)
-
+                    outside_area = np.invert(np.any(labels, axis=2))
+                    outside_area = outside_area.reshape(*outside_area.shape, 1)
+                    labels = np.concatenate((outside_area, labels), axis=2)
                     gt_images.append(labels)
                     images.append(image)
-                except:
+                except Exception as e:
+                    print(e)
                     pass
 
             yield np.array(images), np.array(gt_images)
@@ -119,11 +120,10 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
     for image_file in os.listdir(data_folder):
         image = scipy.misc.imresize(
             imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), image_shape)
-
+        input = (image )
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
-            {keep_prob: 1.0, image_pl: [image]})
-        print(im_softmax.shape)
+            {keep_prob: 1.0, image_pl: [input]})
         im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
         segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
         mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))

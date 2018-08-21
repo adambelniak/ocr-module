@@ -7,10 +7,10 @@ import tensorflow as tf
 import helper_batch as helper
 # Tune these parameters
 
-num_classes = 16
+num_classes = 3
 image_shape = (576, 320)
-EPOCHS = 3
-BATCH_SIZE = 6
+EPOCHS = 2
+BATCH_SIZE = 8
 DROPOUT = 0.75
 
 # Specify these directory paths
