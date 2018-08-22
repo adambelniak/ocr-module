@@ -18,7 +18,7 @@ import numpy as np
 
 
 def retrieve_file(single_data):
-    dir = 'training_set_2/' + single_data['External ID']
+    dir = 'training_set_500/' + single_data['External ID']
     os.mkdir(dir)
     f = open(dir + '/origin.jpg', 'wb')
     f.write(urllib.request.urlopen(single_data['Labeled Data']).read())
@@ -35,19 +35,22 @@ def retrieve_file(single_data):
 
 
 if __name__ == '__main__':
-    # gen = helper_batch.gen_batch_function('data_road/training', (160, 576))
-    # with open('95.json') as json_data:
-    #     d = json.load(json_data)
-    #     for data in d:
-    #         try
-    #         retrieve_file(data)
+    gen = helper_batch.gen_batch_function('data_road/training', (160, 576))
+    with open('data500.json') as json_data:
+        d = json.load(json_data)
+        for data in d:
+            try:
+                retrieve_file(data)
+            except Exception as e:
+                print(e)
+                pass
 
 
 
-    image = imutils.rotate_bound(scipy.misc.imread('training_set_2/IMG_1069.JPG/origin.jpg'), 90)
-    cv2.imshow('image', image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # image = imutils.rotate_bound(scipy.misc.imread('training_set_2/IMG_1069.JPG/origin.jpg'), 90)
+    # cv2.imshow('image', image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     #
     # for i, (x, y) in enumerate(gen(1)):
     #     if i == 1:
