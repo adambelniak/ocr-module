@@ -10,7 +10,7 @@ import helper_batch as helper
 num_classes = 3
 image_shape = (576, 320)
 EPOCHS = 2
-BATCH_SIZE = 8
+BATCH_SIZE = 6
 DROPOUT = 0.75
 
 # Specify these directory paths
@@ -26,7 +26,6 @@ vgg_path = './data/vgg'
 
 correct_label = tf.placeholder(tf.float32, [None, 576, 320, num_classes], name="y")
 learning_rate = tf.placeholder(tf.float32)
-keep_prob = tf.placeholder(tf.float32)
 
 
 # --------------------------
@@ -34,20 +33,9 @@ keep_prob = tf.placeholder(tf.float32)
 # --------------------------
 
 def load_vgg(image_shape):
-    # load the model and weights
-    # model = tf.saved_model.loader.load(sess, ['vgg16'], vgg_path)
-    #
-    # # Get Tensors to be returned from graph
-    # graph = tf.get_default_graph()
-    # image_input = graph.get_tensor_by_name('image_input:0')
-    # print(image_input.shape)
-    # keep_prob = graph.get_tensor_by_name('keep_prob:0')
-    # layer3 = graph.get_tensor_by_name('layer3_out:0')
-    # layer4 = graph.get_tensor_by_name('layer4_out:0')
-    # layer7 = graph.get_tensor_by_name('layer7_out:0')
-
+    
     x = tf.placeholder(tf.float32, shape=[None, image_shape[0], image_shape[1]])
-    input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3])
+    input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3], name='input')
 
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
@@ -83,7 +71,7 @@ def load_vgg(image_shape):
     pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
 
 
-    keep_prob = tf.placeholder(tf.float32)
+    keep_prob = tf.placeholder(tf.float32, name='keep_prob')
     h_fc1_drop = tf.nn.dropout(pool3, keep_prob)
 
     return input_layer, keep_prob, pool1, pool2, h_fc1_drop
@@ -185,7 +173,14 @@ def run():
                  train_op, cross_entropy_loss, image_input,
                  correct_label, keep_prob, learning_rate)
         elapsed_time = time.time() - start_time
-        tf.saved_model.simple_save(session, './saved_model', {"image_pl": image_input, "keep_prob": keep_prob}, {"y": logits})
+        inputs = {
+            "keep_prob": keep_prob,
+            "x": image_input,
+        }
+        outputs = {"y": logits}
+        tf.saved_model.simple_save(
+            session,'./saved_model', inputs, outputs
+        )
         # Run the model with the test images and save each painted output image (roads painted green)
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input)
         print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
