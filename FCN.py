@@ -9,7 +9,7 @@ import helper_batch as helper
 
 num_classes = 3
 image_shape = (576, 320)
-EPOCHS = 5
+EPOCHS = 12
 BATCH_SIZE = 6
 DROPOUT = 0.75
 
@@ -17,7 +17,7 @@ DROPOUT = 0.75
 
 data_dir = './data'
 runs_dir = './runs'
-training_dir = './training_set_500'
+training_dir = './training_set_2'
 vgg_path = './data/vgg'
 
 # --------------------------
@@ -49,11 +49,17 @@ def load_vgg(image_shape):
 
     conv2 = tf.layers.conv2d(
         inputs=pool1,
-        filters=64,
-        kernel_size=[4, 4],
+        filters=32,
+        kernel_size=[3, 3],
         padding="SAME",
         activation=tf.nn.leaky_relu)
-    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+    conv2_2 = tf.layers.conv2d(
+        inputs=conv2,
+        filters=32,
+        kernel_size=[3, 3],
+        padding="SAME",
+        activation=tf.nn.leaky_relu)
+    pool2 = tf.layers.max_pooling2d(inputs=conv2_2, pool_size=[2, 2], strides=2)
 
     conv3 = tf.layers.conv2d(
         inputs=pool2,
@@ -67,7 +73,7 @@ def load_vgg(image_shape):
         filters=64,
         kernel_size=[3, 3],
         padding="SAME",
-        activation=tf.nn.leaky_relu)
+        activation=tf.nn.relu)
     pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
 
 

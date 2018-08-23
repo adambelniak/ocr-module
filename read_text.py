@@ -1,7 +1,4 @@
-import time
-
 import tensorflow as tf
-import helper_batch as helper
 import os
 import scipy.misc
 import imutils
@@ -9,30 +6,53 @@ import numpy as np
 
 image_shape = (576, 320)
 export_dir = './saved_model'
-with tf.Session(graph=tf.Graph()) as sess:
-    model = tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], export_dir)
+NUMBER_CLASS = 3
+
+def load_model(sess):
+    tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], export_dir)
     graph = tf.get_default_graph()
     y = graph.get_tensor_by_name('fcn_logits:0')
     keep_prob = graph.get_tensor_by_name('keep_prob:0')
     x = graph.get_tensor_by_name('input:0')
-    input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3])
-    print(x.shape)
+    # input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3])
 
-    for image_file in os.listdir('./test'):
+    return x, keep_prob, y
+
+
+def get_cell(dir_folder, image_path):
+    with tf.Session(graph=tf.Graph()) as sess:
+        input_layer, keep_prob, y = load_model(sess)
+
         image = scipy.misc.imresize(
-            imutils.rotate_bound(scipy.misc.imread(os.path.join('./test', image_file)), 0), image_shape)
+            imutils.rotate_bound(scipy.misc.imread(os.path.join(dir_folder, image_path)), 90), image_shape)
+        # TODO Should be moved to tensor
         input = (image - 125) / 255
-
+        print(input.shape)
         im_softmax = sess.run(
             [tf.nn.softmax(y)],
-            {keep_prob: 1.0, x: [input]})
+            {keep_prob: 1.0, input_layer: [input]})
 
-        im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
-        mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
-        mask = scipy.misc.toimage(mask, mode="RGBA")
-        street_im = scipy.misc.toimage(image)
-        street_im.paste(mask, box=None, mask=mask)
+        masks = []
+        for label in range(1, NUMBER_CLASS):
+            segmentation = im_softmax[0][:, label].reshape(image_shape[0], image_shape[1])
 
-        scipy.misc.imsave(os.path.join('./runs', image_file), np.array(street_im))
+            segmentation = (segmentation > 0.5).reshape(image_shape[0], image_shape[1], 1)
+            mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
+            masks.append(mask)
+        return masks, image
 
+def color_cells(data_folder):
+
+    for image_file in os.listdir(data_folder):
+        masks, image = get_cell(data_folder, image_file)
+        print(np.shape(masks))
+        for i, mask in enumerate(masks):
+            mask = scipy.misc.toimage(mask, mode="RGBA")
+            street_im = scipy.misc.toimage(image)
+            street_im.paste(mask, box=None, mask=mask)
+            scipy.misc.imsave(os.path.join('./runs', str(i) + image_file), street_im)
+
+
+if __name__ == '__main__':
+    image_path = 'IMG_0369.JPG'
+    color_cells('./test')
