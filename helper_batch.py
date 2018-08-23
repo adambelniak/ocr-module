@@ -75,7 +75,7 @@ def gen_batch_function(data_folder, image_shape):
 
         background_color = np.array([255, 255, 255])
         image_path = 'origin.jpg'
-        masks_path = ['Box' + str(i) + '.jpg' for i in range(1, 16)]
+        masks_path = ['Box11.jpg', 'Box16.jpg']
         random.shuffle(image_paths)
         for batch_i in range(0, len(image_paths), batch_size):
             images = []
@@ -85,7 +85,7 @@ def gen_batch_function(data_folder, image_shape):
                     image = (scipy.misc.imresize(imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file, image_path)), 90), image_shape) - 125) / 255
                     labels = None
 
-                    for mask_path in masks_path[0:2]:
+                    for mask_path in masks_path:
                         gt_image = None
                         try:
                             gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), image_shape)

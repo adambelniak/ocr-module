@@ -9,7 +9,7 @@ import helper_batch as helper
 
 num_classes = 3
 image_shape = (576, 320)
-EPOCHS = 2
+EPOCHS = 5
 BATCH_SIZE = 6
 DROPOUT = 0.75
 
@@ -17,7 +17,7 @@ DROPOUT = 0.75
 
 data_dir = './data'
 runs_dir = './runs'
-training_dir = './training_set_2'
+training_dir = './training_set_500'
 vgg_path = './data/vgg'
 
 # --------------------------
@@ -53,22 +53,22 @@ def load_vgg(image_shape):
         kernel_size=[4, 4],
         padding="SAME",
         activation=tf.nn.leaky_relu)
-    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4, 4], strides=4)
+    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
 
     conv3 = tf.layers.conv2d(
         inputs=pool2,
         filters=64,
-        kernel_size=[5, 5],
+        kernel_size=[3, 3],
         padding="SAME",
         activation=tf.nn.leaky_relu)
 
-    # conv3_2 = tf.layers.conv2d(
-    #     inputs=conv3,
-    #     filters=64,
-    #     kernel_size=[3, 3],
-    #     padding="SAME",
-    #     activation=tf.nn.relu)
-    pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
+    conv3_2 = tf.layers.conv2d(
+        inputs=conv3,
+        filters=64,
+        kernel_size=[3, 3],
+        padding="SAME",
+        activation=tf.nn.leaky_relu)
+    pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
 
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -88,13 +88,13 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
 
     fcn9 = tf.layers.conv2d_transpose(fcn8, filters=layer4.get_shape().as_list()[-1],
-                                      kernel_size=5, strides=(2, 2), padding='SAME', name="fcn9")
+                                      kernel_size=5, strides=(4, 4), padding='SAME', name="fcn9")
     # Add a skip connection between current final layer fcn8 and 4th layer
     fcn9_skip_connected = tf.add(fcn9, layer4, name="fcn9_plus_vgg_layer4")
 
     # Upsample again
     fcn10 = tf.layers.conv2d_transpose(fcn9_skip_connected, filters=layer3.get_shape().as_list()[-1],
-                                       kernel_size=4, strides=(4, 4), padding='SAME', name="fcn10_conv2d")
+                                       kernel_size=4, strides=(2, 2), padding='SAME', name="fcn10_conv2d")
 
     # Add skip connection
     fcn10_skip_connected = tf.add(fcn10, layer3, name="fcn10_plus_vgg_layer3")
