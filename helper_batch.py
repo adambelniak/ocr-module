@@ -58,7 +58,7 @@ def maybe_download_pretrained_vgg(data_dir):
         os.remove(os.path.join(vgg_path, vgg_filename))
 
 
-def gen_batch_function(data_folder, image_shape):
+def gen_batch_function(data_folder, image_shape, output_shape):
     """
     Generate function to create batches of training data
     :param data_folder: Path to folder that contains all the datasets
@@ -75,7 +75,7 @@ def gen_batch_function(data_folder, image_shape):
 
         background_color = np.array([255, 255, 255])
         image_path = 'origin.jpg'
-        masks_path = ['Box11.jpg', 'Box16.jpg']
+        masks_path = ['Box1.jpg', 'Box2.jpg']
         random.shuffle(image_paths)
         for batch_i in range(0, len(image_paths), batch_size):
             images = []
@@ -88,12 +88,12 @@ def gen_batch_function(data_folder, image_shape):
                     for mask_path in masks_path:
                         gt_image = None
                         try:
-                            gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), image_shape)
+                            gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), output_shape)
                         except Exception as e:
                             print(e)
                             pass
                         if gt_image is None:
-                            gt_bg = np.full(image_shape, False, dtype=bool)
+                            gt_bg = np.full(output_shape, False, dtype=bool)
                         else:
                             gt_bg = np.all(gt_image == background_color, axis=2)
 
@@ -115,7 +115,7 @@ def gen_batch_function(data_folder, image_shape):
     return get_batches_fn
 
 
-def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape):
+def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape, output_shape):
     """
     Generate test output using the test images
     :param sess: TF session
@@ -129,21 +129,23 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
     for image_file in os.listdir(data_folder):
         image = scipy.misc.imresize(
             imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), image_shape)
+        output_image = scipy.misc.imresize(
+            imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), output_shape)
         input = (image - 125) / 255
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
             {keep_prob: 1.0, image_pl: [input]})
-        im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
+        im_softmax = im_softmax[0][:, 1].reshape(output_shape[0], output_shape[1])
+        segmentation = (im_softmax > 0.33).reshape(output_shape[0], output_shape[1], 1)
         mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
         mask = scipy.misc.toimage(mask, mode="RGBA")
-        street_im = scipy.misc.toimage(image)
+        street_im = scipy.misc.toimage(output_image)
         street_im.paste(mask, box=None, mask=mask)
 
         yield os.path.basename(image_file), np.array(street_im)
 
 
-def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image):
+def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image, output_shape):
     # Make folder for current run
     output_dir = os.path.join(runs_dir, str(time.time()))
     if os.path.exists(output_dir):
@@ -153,6 +155,6 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     # Run NN on test images and save them to HD
     print('Training Finished. Saving test images to: {}'.format(output_dir))
     image_outputs = gen_test_output(
-        sess, logits, keep_prob, input_image, 'test', image_shape)
+        sess, logits, keep_prob, input_image, 'test', image_shape, output_shape)
     for name, image in image_outputs:
         scipy.misc.imsave(os.path.join(output_dir, name), image)

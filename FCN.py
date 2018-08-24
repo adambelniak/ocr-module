@@ -6,10 +6,12 @@ import time
 import tensorflow as tf
 import helper_batch as helper
 # Tune these parameters
-
+import os
 num_classes = 3
-image_shape = (576, 320)
-EPOCHS = 12
+image_shape = (504, 378)
+
+output_shape = (image_shape[0] * 4, image_shape[1] * 4)
+EPOCHS = 15
 BATCH_SIZE = 6
 DROPOUT = 0.75
 
@@ -24,7 +26,7 @@ vgg_path = './data/vgg'
 # PLACEHOLDER TENSORS
 # --------------------------
 
-correct_label = tf.placeholder(tf.float32, [None, 576, 320, num_classes], name="y")
+correct_label = tf.placeholder(tf.float32, [None, *output_shape, num_classes], name="y")
 learning_rate = tf.placeholder(tf.float32)
 
 
@@ -36,6 +38,8 @@ def load_vgg(image_shape):
     
     x = tf.placeholder(tf.float32, shape=[None, image_shape[0], image_shape[1]])
     input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3], name='input')
+    # substracted = tf.subtract(input_layer, tf.constant(127, dtype=tf.float32))
+    # standarized = tf.divide(substracted, tf.constant(255, dtype=tf.float32))
 
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
@@ -49,13 +53,13 @@ def load_vgg(image_shape):
 
     conv2 = tf.layers.conv2d(
         inputs=pool1,
-        filters=32,
+        filters=64,
         kernel_size=[3, 3],
         padding="SAME",
         activation=tf.nn.leaky_relu)
     conv2_2 = tf.layers.conv2d(
         inputs=conv2,
-        filters=32,
+        filters=64,
         kernel_size=[3, 3],
         padding="SAME",
         activation=tf.nn.leaky_relu)
@@ -64,17 +68,18 @@ def load_vgg(image_shape):
     conv3 = tf.layers.conv2d(
         inputs=pool2,
         filters=64,
-        kernel_size=[3, 3],
+        kernel_size=[5, 5],
         padding="SAME",
         activation=tf.nn.leaky_relu)
 
     conv3_2 = tf.layers.conv2d(
         inputs=conv3,
-        filters=64,
-        kernel_size=[3, 3],
+        filters=96,
+        kernel_size=[5, 5],
+        strides=(2, 2),
         padding="SAME",
         activation=tf.nn.relu)
-    pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
+    pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[2, 2], strides=2)
 
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -91,10 +96,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     fcn8 = tf.layers.conv2d(layer7, filters=num_classes, kernel_size=1, name="fcn8")
 
     # Upsample fcn8 with size depth=(4096?) to match size of layer 4 so that we can add skip connection with 4th layer
-
-
     fcn9 = tf.layers.conv2d_transpose(fcn8, filters=layer4.get_shape().as_list()[-1],
-                                      kernel_size=5, strides=(4, 4), padding='SAME', name="fcn9")
+                                      kernel_size=4, strides=(4, 4), padding='SAME', name="fcn9")
     # Add a skip connection between current final layer fcn8 and 4th layer
     fcn9_skip_connected = tf.add(fcn9, layer4, name="fcn9_plus_vgg_layer4")
 
@@ -107,7 +110,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # Upsample again
     fcn11 = tf.layers.conv2d_transpose(fcn10_skip_connected, filters=num_classes,
-                                       kernel_size=16, strides=(2, 2), padding='SAME', name="fcn11")
+                                       kernel_size=16, strides=(8, 8    ), padding='SAME', name="fcn11")
 
     return fcn11
 
@@ -132,7 +135,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
              cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate):
+             correct_label, keep_prob, learning_rate, logits):
     keep_prob_value = 0.5
     learning_rate_value = 0.001
     print("START")
@@ -151,9 +154,18 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         print("Loss = {:.3f}".format(total_loss))
         print()
 
+        folder = os.path.join(runs_dir, str(epoch))
+        try:
+            os.mkdir(folder)
+        except Exception as e:
+            print(e)
+            pass
+        helper.save_inference_samples(folder, data_dir, sess, image_shape, logits, keep_prob, input_image, output_shape)
+
+
 
 def run():
-    get_batches_fn = helper.gen_batch_function(training_dir, image_shape)
+    get_batches_fn = helper.gen_batch_function(training_dir, image_shape, output_shape)
     with tf.Session() as session:
         image_input, keep_prob, layer3, layer4, layer7 = load_vgg(image_shape)
 
@@ -177,16 +189,19 @@ def run():
 
         train_nn(session, EPOCHS, BATCH_SIZE, get_batches_fn,
                  train_op, cross_entropy_loss, image_input,
-                 correct_label, keep_prob, learning_rate)
+                 correct_label, keep_prob, learning_rate, logits)
         elapsed_time = time.time() - start_time
         inputs = {
             "keep_prob": keep_prob,
             "x": image_input,
         }
         outputs = {"y": logits}
-        tf.saved_model.simple_save(
-            session,'./saved_model', inputs, outputs
-        )
+        try:
+            tf.saved_model.simple_save(
+                session,'./saved_model', inputs, outputs
+            )
+        except:
+            pass
         # Run the model with the test images and save each painted output image (roads painted green)
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input)
         print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time))

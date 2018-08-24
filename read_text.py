@@ -33,10 +33,10 @@ def get_cell(dir_folder, image_path):
             {keep_prob: 1.0, input_layer: [input]})
 
         masks = []
-        for label in range(1, NUMBER_CLASS):
+        for label in range(0, NUMBER_CLASS):
             segmentation = im_softmax[0][:, label].reshape(image_shape[0], image_shape[1])
 
-            segmentation = (segmentation > 0.5).reshape(image_shape[0], image_shape[1], 1)
+            segmentation = (segmentation > 0.33).reshape(image_shape[0], image_shape[1], 1)
             mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
             masks.append(mask)
         return masks, image
