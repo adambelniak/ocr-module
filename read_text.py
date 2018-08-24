@@ -3,21 +3,32 @@ import os
 import scipy.misc
 import imutils
 import numpy as np
-
+import cv2
 image_shape = (576, 320)
 export_dir = './saved_model'
 NUMBER_CLASS = 3
+from tensorflow.core.protobuf import saver_pb2
 
 def load_model(sess):
     tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], export_dir)
     graph = tf.get_default_graph()
     y = graph.get_tensor_by_name('fcn_logits:0')
+    input_layer = tf.reshape(y, [image_shape[0] * image_shape[1] * 3], name='output')
     keep_prob = graph.get_tensor_by_name('keep_prob:0')
     x = graph.get_tensor_by_name('input:0')
     # input_layer = tf.reshape(x, [-1, image_shape[0], image_shape[1], 3])
 
     return x, keep_prob, y
 
+
+def convert_to_meta():
+    with tf.Session(graph=tf.Graph()) as sess:
+        input_layer, keep_prob, y = load_model(sess)
+        meta_graph_def = tf.train.export_meta_graph(filename='./saved_model.meta')
+        saver = tf.train.Saver(write_version = saver_pb2.SaverDef.V2)
+        save_path = saver.save(sess, "./saved_model/saved_model.ckpt")
+        tf.train.write_graph(sess.graph_def, './save', 'ocr' + '.pbtxt')
+        tf.train.write_graph(sess.graph_def, './save', 'ocr' + '.pb', as_text=False)
 
 def get_cell(dir_folder, image_path):
     with tf.Session(graph=tf.Graph()) as sess:
@@ -55,4 +66,5 @@ def color_cells(data_folder):
 
 if __name__ == '__main__':
     image_path = 'IMG_0369.JPG'
-    color_cells('./test')
+    # color_cells('./test')
+    convert_to_meta()

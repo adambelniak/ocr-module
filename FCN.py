@@ -8,7 +8,7 @@ import helper_batch as helper
 # Tune these parameters
 import os
 num_classes = 3
-image_shape = (504, 378)
+image_shape = (512, 384)
 
 output_shape = (image_shape[0] * 4, image_shape[1] * 4)
 EPOCHS = 15
@@ -110,7 +110,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # Upsample again
     fcn11 = tf.layers.conv2d_transpose(fcn10_skip_connected, filters=num_classes,
-                                       kernel_size=16, strides=(8, 8    ), padding='SAME', name="fcn11")
+                                       kernel_size=16, strides=(2, 2), padding='SAME', name="fcn11")
 
     return fcn11
 
@@ -120,7 +120,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     logits = tf.reshape(nn_last_layer, (-1, num_classes), name="fcn_logits")
     correct_label_reshaped = tf.reshape(correct_label, (-1, num_classes))
     print(logits.shape)
-    print(correct_label_reshaped.shape)
+    print(correct_label_reshaped[:])
 
     # Calculate distance from actual labels using cross entropy
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label_reshaped[:])
