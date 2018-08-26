@@ -9,6 +9,9 @@ import json
 import urllib.request
 import cv2
 import numpy as np
+import shutil
+from sklearn import datasets, linear_model
+from sklearn.model_selection import train_test_split
 #
 # def prepare_data(dir, data=[]):
 #     file_names = os.listdir(dir)
@@ -16,6 +19,14 @@ import numpy as np
 #
 #     return data
 
+def prepare_data(dir, data):
+    file_names = os.listdir(dir)
+    for file in file_names:
+        img = cv2.imread(dir + '/' + file, 0)
+        if img is not None:
+            res = cv2.resize(img, None, fx=0.25, fy=0.25, interpolation=cv2.INTER_CUBIC)
+            data.append(res)
+    return data
 
 def retrieve_file(single_data):
     dir = 'training_set_500/' + single_data['External ID']
@@ -34,13 +45,30 @@ def retrieve_file(single_data):
         # f.close()
 
 
+def retriev_classify_set(single_data, dir):
+    dir = os.path.join(dir, single_data['Label']['Recognize'])
+    print(dir)
+    if not os.path.exists(os.path.join(dir, single_data['External ID'])):
+        f = open(os.path.join(dir, single_data['External ID']), 'wb')
+        f.write(urllib.request.urlopen(single_data['Labeled Data']).read())
+        f.close()
+
+
 if __name__ == '__main__':
-    gen = helper_batch.gen_batch_function('data_road/training', (160, 576))
-    with open('data500.json') as json_data:
+    # gen = helper_batch.gen_batch_function('data_road/training', (160, 576))
+    dir = 'sharpness_set'
+    with open('sharpness_set.json') as json_data:
+        try:
+            os.mkdir(os.path.join(dir, 'True'))
+            os.mkdir(os.path.join(dir, 'False'))
+        except FileExistsError as e:
+            print("Directory Exist")
+            pass
+
         d = json.load(json_data)
         for data in d:
             try:
-                retrieve_file(data)
+                retriev_classify_set(data, dir)
             except Exception as e:
                 print(e)
                 pass
