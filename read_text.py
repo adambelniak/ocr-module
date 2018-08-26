@@ -3,8 +3,9 @@ import os
 import scipy.misc
 import imutils
 import numpy as np
+
+image_shape = (512 , 384)
 import cv2
-image_shape = (576, 320)
 export_dir = './saved_model'
 NUMBER_CLASS = 3
 from tensorflow.core.protobuf import saver_pb2
