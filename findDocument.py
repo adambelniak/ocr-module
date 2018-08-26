@@ -11,7 +11,7 @@ import random
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 import scipy.misc
-
+import math
 
 IMAGE_SHAPE = (512, 384)
 BATCH_SIZE = 20
@@ -108,10 +108,11 @@ def build_graph(data, labels):
 
             writer = tf.summary.FileWriter('.')
             writer.add_graph(tf.get_default_graph())
-            for bid in range(int(len(x_s) / BATCH_SIZE)):
+            for bid in range(math.ceil(len(x_s) / BATCH_SIZE)):
                 try:
-                    batch = np.array(x_s[bid * BATCH_SIZE:(bid + 1) * BATCH_SIZE])
-                    y_batch = y_s[bid * BATCH_SIZE:(bid + 1) * BATCH_SIZE]
+                    num = len(x_s) - 1 if (bid + 1) * BATCH_SIZE > len(x_s) else (bid + 1) * BATCH_SIZE
+                    batch = np.array(x_s[bid * BATCH_SIZE:num])
+                    y_batch = y_s[bid * BATCH_SIZE:num]
                     print('\r', end='')  # use '\r' to go back
                     print(str(bid) + '/' + str(len(x_s) / BATCH_SIZE), end="", flush=True)
                     if bid % 10 == 0:
@@ -119,7 +120,7 @@ def build_graph(data, labels):
                             input_layer: np.array(x_test), y_: y_test, keep_prob: 1.0})
                         print('step %d, training accuracy %g' % (i, train_accuracy))
                     train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
-                except ValueError as e:
+                except Exception as e:
                     print(e)
                     pass
 
