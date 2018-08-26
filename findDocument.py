@@ -16,7 +16,7 @@ import math
 from tensorflow.core.protobuf import saver_pb2
 
 IMAGE_SHAPE = (512, 384)
-BATCH_SIZE = 20
+BATCH_SIZE = 4
 
 
 def weight_variable(shape):
@@ -57,27 +57,33 @@ def build_graph(data, labels):
         inputs=input_layer,
         filters=32,
         kernel_size=[3, 3],
-        padding="valid",
+        padding="SAME",
         activation=tf.nn.relu)
 
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
     conv2 = tf.layers.conv2d(
         inputs=pool1,
         filters=64,
-        kernel_size=[5, 5],
-        padding="valid",
+        kernel_size=[3, 3],
+        padding="SAME",
         activation=tf.nn.relu)
     pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
 
     conv3 = tf.layers.conv2d(
         inputs=pool2,
         filters=64,
-        kernel_size=[7, 7],
-        padding="valid",
+        kernel_size=[5, 5],
+        padding="SAME",
         activation=tf.nn.relu)
-    pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[4, 4], strides=2)
+    conv3_2 = tf.layers.conv2d(
+        inputs=conv3,
+        filters=64,
+        kernel_size=[5, 5],
+        padding="SAME",
+        activation=tf.nn.relu)
+    pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
 
-    pool3_flat = tf.reshape(pool3, [-1, 58 * 42 * 64])
+    pool3_flat = tf.reshape(pool3, [-1, 32 * 24 * 64])
     dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu)
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -91,13 +97,14 @@ def build_graph(data, labels):
     correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.7
+    with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
         x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
         print("Test Data Loaded")
-        for i in range(4):
+        for i in range(10):
             x_s,  y_s = shuffle(x_train, y_train, random_state=0)
 
             writer = tf.summary.FileWriter('.')
@@ -111,10 +118,15 @@ def build_graph(data, labels):
 
                     print('\r', end='')  # use '\r' to go back
                     print(str(bid) + '/' + str(len(x_s) / BATCH_SIZE), end="", flush=True)
-                    if bid % 10 == 0:
-                        train_accuracy = accuracy.eval(feed_dict={
-                            input_layer: np.array(x_test_images), y_: y_test_labels, keep_prob: 1.0})
-                        print('step %d, training accuracy %g' % (i, train_accuracy))
+                    if bid % 40 == 0:
+                        train_accuracy = 0
+                        for bid_test in range(math.ceil(len(x_test) / BATCH_SIZE)):
+                            num = len(x_test_images) - 1 if (bid_test + 1) * BATCH_SIZE > len(x_test_images) else (bid_test + 1) * BATCH_SIZE
+                            batch_test = np.array(x_test_images[bid_test * BATCH_SIZE:num])
+                            y_batch_test = y_test_labels[bid_test * BATCH_SIZE:num]
+                            train_accuracy += accuracy.eval(feed_dict={
+                                input_layer: np.array(batch_test), y_: y_batch_test, keep_prob: 1.0})
+                        print('step %d, training accuracy %g' % (i, train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)))
                     train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
                 except Exception as e:
                     print(e)
@@ -142,8 +154,6 @@ def get_batches_fn(batch, y_batch, image_shape):
     images = []
     labels = []
     for i, (image_file, label) in enumerate(zip(batch, y_batch)):
-        print('\r', end='')  # use '\r' to go back
-        print(str(i), end="", flush=True)
         try:
             img = scipy.misc.imread(image_file)
             if img is not None:
