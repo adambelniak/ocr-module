@@ -13,6 +13,8 @@ from sklearn.model_selection import train_test_split
 import scipy.misc
 import math
 
+from tensorflow.core.protobuf import saver_pb2
+
 IMAGE_SHAPE = (512, 384)
 BATCH_SIZE = 20
 
@@ -48,7 +50,7 @@ def prepare_data(dir, data):
 def build_graph(data, labels):
     x = tf.placeholder(tf.float32, shape=[None, *IMAGE_SHAPE])
     y_ = tf.placeholder(tf.float32, shape=[None, 2])
-    input_layer = tf.reshape(x, [-1, *IMAGE_SHAPE, 3])
+    input_layer = tf.reshape(x, [-1, *IMAGE_SHAPE, 3], name="input")
 
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
@@ -78,7 +80,7 @@ def build_graph(data, labels):
     pool3_flat = tf.reshape(pool3, [-1, 58 * 42 * 64])
     dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu)
 
-    keep_prob = tf.placeholder(tf.float32)
+    keep_prob = tf.placeholder(tf.float32, name='keep_prob')
     h_fc1_drop = tf.nn.dropout(dense, keep_prob)
 
     logits = tf.layers.dense(inputs=h_fc1_drop, units=2)
@@ -117,6 +119,18 @@ def build_graph(data, labels):
                 except Exception as e:
                     print(e)
                     pass
+
+        try:
+            os.mkdir('./saved_model_class')
+        except:
+            pass
+        graph = tf.get_default_graph()
+        y = graph.get_tensor_by_name('fcn_logits:0')
+        input_layer = tf.reshape(y, [IMAGE_SHAPE[0] * IMAGE_SHAPE[1] * 3], name='output')
+        keep_prob = graph.get_tensor_by_name('keep_prob:0')
+        x = graph.get_tensor_by_name('input:0')
+        saver = tf.train.Saver(write_version=saver_pb2.SaverDef.V2)
+        save_path = saver.save(sess, "./saved_model_class/saved_model.ckpt")
 
 
 def get_batches_fn(batch, y_batch, image_shape):

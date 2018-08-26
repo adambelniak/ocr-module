@@ -59,6 +59,7 @@ if __name__ == '__main__':
     dir = 'sharpness_set'
     with open('sharpness_set.json') as json_data:
         try:
+            os.mkdir(dir)
             os.mkdir(os.path.join(dir, 'True'))
             os.mkdir(os.path.join(dir, 'False'))
         except FileExistsError as e:
