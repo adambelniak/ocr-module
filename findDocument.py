@@ -133,7 +133,7 @@ def get_batches_fn(batch, y_batch, image_shape):
         try:
             img = scipy.misc.imread(image_file)
             if img is not None:
-                data.append((scipy.misc.imresize(img, IMAGE_SHAPE) - 125) / 255)
+                images.append((scipy.misc.imresize(img, image_shape) - 125) / 255)
                 labels.append(label)
         except Exception as e:
             print(e)
