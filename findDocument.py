@@ -38,20 +38,11 @@ def max_pool_2x2(x):
 
 def prepare_data(dir, data):
     file_names = os.listdir(dir)
+    image_paths = []
     for i, file in enumerate(file_names):
-        try:
-            img = scipy.misc.imread(os.path.join(dir, file))
-            if img is not None:
-                data.append((scipy.misc.imresize(img, IMAGE_SHAPE) - 125) / 255)
-        except OSError as e:
-            print(e)
-            pass
-        print('\r', end='')  # use '\r' to go back
-
-        print(i, end="", flush=True)
-
+        image_paths.append(os.path.join(dir, file))
         # sys.stdout.flush()
-    return data
+    return image_paths
 
 
 def build_graph(data, labels):
@@ -102,7 +93,8 @@ def build_graph(data, labels):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
-
+        x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
+        print("Test Data Loaded")
         for i in range(4):
             x_s,  y_s = shuffle(x_train, y_train, random_state=0)
 
@@ -113,16 +105,40 @@ def build_graph(data, labels):
                     num = len(x_s) - 1 if (bid + 1) * BATCH_SIZE > len(x_s) else (bid + 1) * BATCH_SIZE
                     batch = np.array(x_s[bid * BATCH_SIZE:num])
                     y_batch = y_s[bid * BATCH_SIZE:num]
+                    batch, y_batch = get_batches_fn(batch, y_batch, IMAGE_SHAPE)
+
                     print('\r', end='')  # use '\r' to go back
                     print(str(bid) + '/' + str(len(x_s) / BATCH_SIZE), end="", flush=True)
                     if bid % 10 == 0:
                         train_accuracy = accuracy.eval(feed_dict={
-                            input_layer: np.array(x_test), y_: y_test, keep_prob: 1.0})
+                            input_layer: np.array(x_test_images), y_: y_test_labels, keep_prob: 1.0})
                         print('step %d, training accuracy %g' % (i, train_accuracy))
                     train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
                 except Exception as e:
                     print(e)
                     pass
+
+
+def get_batches_fn(batch, y_batch, image_shape):
+    """
+    Create batches of training data
+    :param batch_size: Batch Size
+    :return: Batches of training data
+    """
+    images = []
+    labels = []
+    for i, (image_file, label) in enumerate(zip(batch, y_batch)):
+        print('\r', end='')  # use '\r' to go back
+        print(str(i), end="", flush=True)
+        try:
+            img = scipy.misc.imread(image_file)
+            if img is not None:
+                data.append((scipy.misc.imresize(img, IMAGE_SHAPE) - 125) / 255)
+                labels.append(label)
+        except Exception as e:
+            print(e)
+            pass
+    return np.array(images), np.array(labels)
 
 
 if __name__ == '__main__':
