@@ -41,7 +41,7 @@ def max_pool_2x2(x):
 def prepare_data(dir, data):
     file_names = os.listdir(dir)
     image_paths = []
-    for i, file in enumerate(file_names[:30]):
+    for i, file in enumerate(file_names):
         image_paths.append(os.path.join(dir, file))
         # sys.stdout.flush()
     return image_paths
@@ -114,7 +114,7 @@ def build_graph(data, labels):
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
         x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
         print("Test Data Loaded")
-        for i in range(3):
+        for i in range(15):
             x_s,  y_s = shuffle(x_train, y_train, random_state=0)
 
             writer = tf.summary.FileWriter('.')
