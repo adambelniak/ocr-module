@@ -41,7 +41,7 @@ def max_pool_2x2(x):
 def prepare_data(dir, data):
     file_names = os.listdir(dir)
     image_paths = []
-    for i, file in enumerate(file_names):
+    for i, file in enumerate(file_names[:30]):
         image_paths.append(os.path.join(dir, file))
         # sys.stdout.flush()
     return image_paths
@@ -74,15 +74,25 @@ def build_graph(data, labels):
         kernel_size=[5, 5],
         padding="SAME",
         activation=tf.nn.relu)
-    conv3_2 = tf.layers.conv2d(
-        inputs=conv3,
-        filters=64,
+
+    pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
+
+    conv4 = tf.layers.conv2d(
+        inputs=pool3,
+        filters=96,
         kernel_size=[5, 5],
         padding="SAME",
         activation=tf.nn.relu)
-    pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
+    conv4_2 = tf.layers.conv2d(
+        inputs=conv4,
+        filters=96,
+        kernel_size=[5, 5],
+        padding="SAME",
+        activation=tf.nn.relu)
 
-    pool3_flat = tf.reshape(pool3, [-1, 64 * 48 * 64])
+    pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[4, 4], strides=5)
+
+    pool3_flat = tf.reshape(pool4, [-1, 25 * 19 * 96])
     dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu)
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -104,7 +114,7 @@ def build_graph(data, labels):
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
         x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
         print("Test Data Loaded")
-        for i in range(15):
+        for i in range(3):
             x_s,  y_s = shuffle(x_train, y_train, random_state=0)
 
             writer = tf.summary.FileWriter('.')
