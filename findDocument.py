@@ -98,7 +98,7 @@ def build_graph(data, labels):
     output = tf.nn.softmax(logits, name='output')
 
     config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.7
+    config.gpu_options.per_process_gpu_memory_fraction = 0.9
     with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
@@ -144,7 +144,7 @@ def build_graph(data, labels):
         outputs = {
             "output": output
         }
-        tf.saved_model.simple_save(sess, './simple/saved/model', inputs, outputs)
+        tf.saved_model.simple_save(sess, './simple/saved_model', inputs, outputs)
         graph = tf.get_default_graph()
         saver = tf.train.Saver(write_version=saver_pb2.SaverDef.V2)
         save_path = saver.save(sess, "./saved_model_class/saved_model.ckpt")
