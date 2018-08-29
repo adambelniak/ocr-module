@@ -15,8 +15,8 @@ import math
 
 from tensorflow.core.protobuf import saver_pb2
 
-IMAGE_SHAPE = (512, 384)
-BATCH_SIZE = 4
+IMAGE_SHAPE = (1024, 768)
+BATCH_SIZE = 5
 
 
 def weight_variable(shape):
@@ -48,10 +48,9 @@ def prepare_data(dir, data):
 
 
 def build_graph(data, labels):
-    x = tf.placeholder(tf.float32, shape=[None, *IMAGE_SHAPE])
+    x = tf.placeholder(tf.float32, shape=[None, *IMAGE_SHAPE, 3], name='input')
     y_ = tf.placeholder(tf.float32, shape=[None, 2])
-    input_layer = tf.reshape(x, [-1, *IMAGE_SHAPE, 3], name="input")
-
+    input_layer = tf.reshape(x, [-1, *IMAGE_SHAPE, 3])
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
         inputs=input_layer,
@@ -83,7 +82,7 @@ def build_graph(data, labels):
         activation=tf.nn.relu)
     pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
 
-    pool3_flat = tf.reshape(pool3, [-1, 32 * 24 * 64])
+    pool3_flat = tf.reshape(pool3, [-1, 64 * 48 * 64])
     dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu)
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -96,6 +95,7 @@ def build_graph(data, labels):
     train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
     correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    output = tf.nn.softmax(logits, name='output')
 
     config = tf.ConfigProto()
     config.gpu_options.per_process_gpu_memory_fraction = 0.7
@@ -104,7 +104,7 @@ def build_graph(data, labels):
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
         x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
         print("Test Data Loaded")
-        for i in range(10):
+        for i in range(15):
             x_s,  y_s = shuffle(x_train, y_train, random_state=0)
 
             writer = tf.summary.FileWriter('.')
@@ -136,13 +136,19 @@ def build_graph(data, labels):
             os.mkdir('./saved_model_class')
         except:
             pass
+
+        inputs = {
+            "keep_prob": keep_prob,
+            "x": x
+        }
+        outputs = {
+            "output": output
+        }
+        tf.saved_model.simple_save(sess, './simple/saved/model', inputs, outputs)
         graph = tf.get_default_graph()
-        y = graph.get_tensor_by_name('fcn_logits:0')
-        input_layer = tf.reshape(y, [IMAGE_SHAPE[0] * IMAGE_SHAPE[1] * 3], name='output')
-        keep_prob = graph.get_tensor_by_name('keep_prob:0')
-        x = graph.get_tensor_by_name('input:0')
         saver = tf.train.Saver(write_version=saver_pb2.SaverDef.V2)
         save_path = saver.save(sess, "./saved_model_class/saved_model.ckpt")
+        tf.train.write_graph(sess.graph_def, './saved_model_class', 'saved_model.pb', as_text=False )
 
 
 def get_batches_fn(batch, y_batch, image_shape):
