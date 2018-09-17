@@ -1,6 +1,7 @@
 import sys
 from time import sleep
 
+import imutils
 import tensorflow as tf
 import os
 import shutil
@@ -16,8 +17,12 @@ import math
 
 from tensorflow.core.protobuf import saver_pb2
 
-IMAGE_SHAPE = (512, 384)
-BATCH_SIZE = 5
+IMAGE_SHAPE = (64, 48)
+BATCH_SIZE = 10
+"""
+# IT'S IMPORTANT TO SEND TO MODEL IMAGE IN BGR FORMAT
+
+"""
 
 
 def weight_variable(shape):
@@ -42,7 +47,7 @@ def max_pool_2x2(x):
 def prepare_data(dir, data):
     file_names = os.listdir(dir)
     image_paths = []
-    for i, file in enumerate(file_names):
+    for i, file in enumerate(file_names[:600]):
         image_paths.append(os.path.join(dir, file))
         # sys.stdout.flush()
     return image_paths
@@ -61,40 +66,40 @@ def build_graph(data, labels):
         activation=tf.nn.relu)
 
     pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
-    conv2 = tf.layers.conv2d(
-        inputs=pool1,
-        filters=64,
-        kernel_size=[3, 3],
-        padding="SAME",
-        activation=tf.nn.relu)
-    pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
+    # conv2 = tf.layers.conv2d(
+    #     inputs=pool1,
+    #     filters=32,
+    #     kernel_size=[3, 3],
+    #     padding="SAME",
+    #     activation=tf.nn.relu)
+    # pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4, 4], strides=4)
 
-    conv3 = tf.layers.conv2d(
-        inputs=pool2,
-        filters=64,
-        kernel_size=[5, 5],
-        padding="SAME",
-        activation=tf.nn.relu)
+    # conv3 = tf.layers.conv2d(
+    #     inputs=pool2,
+    #     filters=64,
+    #     kernel_size=[5, 5],
+    #     padding="SAME",
+    #     activation=tf.nn.relu)
+    #
+    # pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
 
-    pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
+    # conv4 = tf.layers.conv2d(
+    #     inputs=pool3,
+    #     filters=96,
+    #     kernel_size=[5, 5],
+    #     padding="SAME",
+    #     activation=tf.nn.relu)
+    # conv4_2 = tf.layers.conv2d(
+    #     inputs=conv4,
+    #     filters=96,
+    #     kernel_size=[5, 5],
+    #     padding="SAME",
+    #     activation=tf.nn.relu)
+    #
+    # pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[2, 2], strides=2)
 
-    conv4 = tf.layers.conv2d(
-        inputs=pool3,
-        filters=96,
-        kernel_size=[5, 5],
-        padding="SAME",
-        activation=tf.nn.relu)
-    conv4_2 = tf.layers.conv2d(
-        inputs=conv4,
-        filters=96,
-        kernel_size=[5, 5],
-        padding="SAME",
-        activation=tf.nn.relu)
-
-    pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[2, 2], strides=2)
-
-    pool3_flat = tf.reshape(pool4, [-1, 32 * 24 * 96])
-    dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu)
+    pool3_flat = tf.reshape(pool1, [-1, 32 * 24 * 32])
+    dense = tf.layers.dense(inputs=pool3_flat, units=512, activation=tf.nn.relu)
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
     h_fc1_drop = tf.nn.dropout(dense, keep_prob)
@@ -171,6 +176,8 @@ def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , 
                         train_accuracy += accuracy.eval(feed_dict={
                             input_layer: np.array(batch_test), y_: y_batch_test, keep_prob: 1.0})
                     print('step %d, training accuracy %g' % (i, train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)))
+                    print('step %d, training accuracy %g' % (i, train_accuracy))
+
                     # summ_writer.add_summary(train_accuracy, i)
 
                 # train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
@@ -222,9 +229,12 @@ def get_batches_fn(batch, y_batch, image_shape):
     labels = []
     for i, (image_file, label) in enumerate(zip(batch, y_batch)):
         try:
-            img = scipy.misc.imread(image_file)
+            img = imutils.rotate_bound(scipy.misc.imread(image_file, mode='RGB'), 90)
             if img is not None:
-                images.append((scipy.misc.imresize(img, image_shape) - 125) / 255)
+                img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                img = scipy.misc.imresize(img, image_shape)  / 255
+                images.append(img)
+
                 labels.append(label)
                 # print("\r import data {:d}/{:d}".format(i, len(batch)), end="")
                 # sys.stdout.flush()
