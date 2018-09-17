@@ -1,4 +1,5 @@
 import sys
+from time import sleep
 
 import tensorflow as tf
 import os
@@ -15,7 +16,7 @@ import math
 
 from tensorflow.core.protobuf import saver_pb2
 
-IMAGE_SHAPE = (1024, 768)
+IMAGE_SHAPE = (512, 384)
 BATCH_SIZE = 5
 
 
@@ -90,9 +91,9 @@ def build_graph(data, labels):
         padding="SAME",
         activation=tf.nn.relu)
 
-    pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[4, 4], strides=5)
+    pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[2, 2], strides=2)
 
-    pool3_flat = tf.reshape(pool4, [-1, 25 * 19 * 96])
+    pool3_flat = tf.reshape(pool4, [-1, 32 * 24 * 96])
     dense = tf.layers.dense(inputs=pool3_flat, units=1024, activation=tf.nn.relu)
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -102,63 +103,113 @@ def build_graph(data, labels):
 
     cross_entropy = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=logits))
-    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-    correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y_, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    tf.summary.scalar('cross_entropy', cross_entropy)
+
+    train_step = tf.train.AdamOptimizer(1e-3).minimize(cross_entropy)
+
+    with tf.name_scope('accuracy'):
+        with tf.name_scope('correct_prediction'):
+            correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y_, 1))
+    with tf.name_scope('accuracy'):
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     output = tf.nn.softmax(logits, name='output')
 
+    start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy, labels, cross_entropy)
+
+
+def summaries():
+    with tf.name_scope('performance'):
+        # Summaries need to display on the Tensorboard
+        # Whenever need to record the loss, feed the mean loss to this placeholder
+        tf_loss_ph = tf.placeholder(tf.float32, shape=None, name='loss_summary')
+        # Create a scalar summary object for the loss so Tensorboard knows how to display it
+        tf_loss_summary = tf.summary.scalar('loss', tf_loss_ph)
+
+        # Whenever you need to record the loss, feed the mean test accuracy to this placeholder
+        tf_accuracy_ph = tf.placeholder(tf.float32, shape=None, name='accuracy_summary')
+        # Create a scalar summary object for the accuracy so Tensorboard knows how to display it
+        tf_accuracy_summary = tf.summary.scalar('accuracy', tf_accuracy_ph)
+        performance_summaries = tf.summary.merge([tf_loss_summary, tf_accuracy_summary])
+
+        return performance_summaries, tf_loss_ph, tf_accuracy_ph
+
+
+def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , labels, cross_entropy):
     config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.9
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.9
+
+    performance_summaries, tf_loss_ph, tf_accuracy_ph = summaries()
     with tf.Session(config=config) as sess:
         sess.run(tf.global_variables_initializer())
         x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
         x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
+        writer = tf.summary.FileWriter('.')
+        writer.add_graph(tf.get_default_graph())
+        summ_writer = tf.summary.FileWriter(os.path.join('summaries', 'first'), sess.graph)
+        accuracy_per_epoch = []
+
         print("Test Data Loaded")
         for i in range(15):
             x_s,  y_s = shuffle(x_train, y_train, random_state=0)
 
-            writer = tf.summary.FileWriter('.')
-            writer.add_graph(tf.get_default_graph())
+            loss_per_epoch = []
             for bid in range(math.ceil(len(x_s) / BATCH_SIZE)):
-                try:
-                    num = len(x_s) - 1 if (bid + 1) * BATCH_SIZE > len(x_s) else (bid + 1) * BATCH_SIZE
-                    batch = np.array(x_s[bid * BATCH_SIZE:num])
-                    y_batch = y_s[bid * BATCH_SIZE:num]
-                    batch, y_batch = get_batches_fn(batch, y_batch, IMAGE_SHAPE)
 
-                    print('\r', end='')  # use '\r' to go back
-                    print(str(bid) + '/' + str(len(x_s) / BATCH_SIZE), end="", flush=True)
-                    if bid % 40 == 0:
-                        train_accuracy = 0
-                        for bid_test in range(math.ceil(len(x_test) / BATCH_SIZE)):
-                            num = len(x_test_images) - 1 if (bid_test + 1) * BATCH_SIZE > len(x_test_images) else (bid_test + 1) * BATCH_SIZE
-                            batch_test = np.array(x_test_images[bid_test * BATCH_SIZE:num])
-                            y_batch_test = y_test_labels[bid_test * BATCH_SIZE:num]
-                            train_accuracy += accuracy.eval(feed_dict={
-                                input_layer: np.array(batch_test), y_: y_batch_test, keep_prob: 1.0})
-                        print('step %d, training accuracy %g' % (i, train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)))
-                    train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
-                except Exception as e:
-                    print(e)
-                    pass
+                num = len(x_s) - 1 if (bid + 1) * BATCH_SIZE > len(x_s) else (bid + 1) * BATCH_SIZE
+                batch = np.array(x_s[bid * BATCH_SIZE:num])
+                y_batch = y_s[bid * BATCH_SIZE:num]
+                batch, y_batch = get_batches_fn(batch, y_batch, IMAGE_SHAPE)
 
-        try:
-            os.mkdir('./saved_model_class')
-        except:
-            pass
+                print('\r', end='')  # use '\r' to go back
+                print(str(bid) + '/' + str(len(x_s) / BATCH_SIZE), end="", flush=True)
+                if bid % 40 == 0:
+                    train_accuracy = 0
+                    for bid_test in range(math.ceil(len(x_test) / BATCH_SIZE)):
+                        num = len(x_test_images) - 1 if (bid_test + 1) * BATCH_SIZE > len(x_test_images) else (bid_test + 1) * BATCH_SIZE
+                        batch_test = np.array(x_test_images[bid_test * BATCH_SIZE:num])
+                        y_batch_test = y_test_labels[bid_test * BATCH_SIZE:num]
+                        train_accuracy += accuracy.eval(feed_dict={
+                            input_layer: np.array(batch_test), y_: y_batch_test, keep_prob: 1.0})
+                    print('step %d, training accuracy %g' % (i, train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)))
+                    # summ_writer.add_summary(train_accuracy, i)
 
-        inputs = {
-            "keep_prob": keep_prob,
-            "x": x
-        }
-        outputs = {
-            "output": output
-        }
-        tf.saved_model.simple_save(sess, './simple/saved_model', inputs, outputs)
-        graph = tf.get_default_graph()
-        saver = tf.train.Saver(write_version=saver_pb2.SaverDef.V2)
-        save_path = saver.save(sess, "./saved_model_class/saved_model.ckpt")
-        tf.train.write_graph(sess.graph_def, './saved_model_class', 'saved_model.pb', as_text=False )
+                # train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
+
+                loss, _ = sess.run([cross_entropy, train_step],
+                                   feed_dict={input_layer: batch, y_: y_batch,
+                                              keep_prob: 0.5})
+                loss_per_epoch.append(loss)
+
+
+            print('Average loss in epoch %d: %.5f' % (i, np.mean(loss_per_epoch)))
+            avg_loss = np.mean(loss_per_epoch)
+            summ = sess.run(performance_summaries,
+                               feed_dict={tf_loss_ph: avg_loss, tf_accuracy_ph: train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)})
+
+            # Write the obtained summaries to the file, so it can be displayed in the Tensorboard
+            summ_writer.add_summary(summ, i)
+
+        save_model(sess, x, output, keep_prob)
+
+
+def save_model(sess, x, output, keep_prob):
+    try:
+        os.mkdir('./saved_model_class')
+    except:
+        pass
+
+    inputs = {
+        "keep_prob": keep_prob,
+        "x": x
+    }
+    outputs = {
+        "output": output
+    }
+    tf.saved_model.simple_save(sess, './simple/saved_model', inputs, outputs)
+    tf.get_default_graph()
+    saver = tf.train.Saver(write_version=saver_pb2.SaverDef.V2)
+    saver.save(sess, "./saved_model_class/saved_model.ckpt")
+    tf.train.write_graph(sess.graph_def, './saved_model_class', 'saved_model.pb', as_text=False)
 
 
 def get_batches_fn(batch, y_batch, image_shape):
@@ -175,6 +226,9 @@ def get_batches_fn(batch, y_batch, image_shape):
             if img is not None:
                 images.append((scipy.misc.imresize(img, image_shape) - 125) / 255)
                 labels.append(label)
+                # print("\r import data {:d}/{:d}".format(i, len(batch)), end="")
+                # sys.stdout.flush()
+
         except Exception as e:
             print(e)
             pass
