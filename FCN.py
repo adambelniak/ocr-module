@@ -17,7 +17,7 @@ DROPOUT = 0.75
 
 data_dir = './data'
 runs_dir = './runs'
-training_dir = './training_set_2'
+training_dir = './training_set_500'
 vgg_path = './data/vgg'
 
 # --------------------------
@@ -171,7 +171,7 @@ def run():
         # - cross_entropy_loss: function outputting the cost which we are minimizing, lower cost should yield higher accuracy
         logits, train_op, cross_entropy_loss = optimize(model_output, correct_label, learning_rate, num_classes)
 
-        # Initialize all variables
+        # Initiasze all variables
         session.run(tf.global_variables_initializer())
         session.run(tf.local_variables_initializer())
 

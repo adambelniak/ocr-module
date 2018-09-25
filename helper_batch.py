@@ -76,9 +76,9 @@ def gen_batch_function(data_folder, image_shape, output_shape):
 
         background_color = np.array([255, 255, 255])
         image_path = 'origin.jpg'
-        masks_path = ['Box1.jpg', 'Box2.jpg']
+        masks_path = ['Box11.jpg', 'Box16.jpg']
         random.shuffle(image_paths)
-        for batch_i in range(0,10, batch_size):
+        for batch_i in range(0,len(image_paths), batch_size):
             images = []
             gt_images = []
             for image_file in image_paths[batch_i:batch_i+batch_size]:
@@ -98,7 +98,6 @@ def gen_batch_function(data_folder, image_shape, output_shape):
                             gt_image = cv2.resize(gt_image, (image_shape[1], image_shape[0]),
                                                interpolation=cv2.INTER_CUBIC) / 255
                         except Exception as e:
-                            print(e)
                             pass
                         if gt_image is None:
                             gt_bg = np.full(output_shape, False, dtype=bool)
@@ -116,7 +115,6 @@ def gen_batch_function(data_folder, image_shape, output_shape):
                     gt_images.append(labels)
                     images.append(image)
                 except Exception as e:
-                    print(e)
                     pass
 
             yield np.array(images), np.array(gt_images)
