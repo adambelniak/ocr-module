@@ -17,8 +17,8 @@ import math
 
 from tensorflow.core.protobuf import saver_pb2
 
-IMAGE_SHAPE = (64, 48)
-BATCH_SIZE = 10
+IMAGE_SHAPE = (512, 384)
+BATCH_SIZE = 13
 """
 # IT'S IMPORTANT TO SEND TO MODEL IMAGE IN BGR FORMAT
 
@@ -47,7 +47,7 @@ def max_pool_2x2(x):
 def prepare_data(dir, data):
     file_names = os.listdir(dir)
     image_paths = []
-    for i, file in enumerate(file_names[:600]):
+    for i, file in enumerate(file_names):
         image_paths.append(os.path.join(dir, file))
         # sys.stdout.flush()
     return image_paths
@@ -60,12 +60,19 @@ def build_graph(data, labels):
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
         inputs=input_layer,
-        filters=32,
+        filters=16,
         kernel_size=[3, 3],
         padding="SAME",
         activation=tf.nn.relu)
 
-    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
+    conv1_2 = tf.layers.conv2d(
+        inputs=conv1,
+        filters=16,
+        kernel_size=[3, 3],
+        padding="SAME",
+        activation=tf.nn.relu)
+
+    pool1 = tf.layers.max_pooling2d(inputs=conv1_2, pool_size=[4, 4], strides=4)
     # conv2 = tf.layers.conv2d(
     #     inputs=pool1,
     #     filters=32,
@@ -74,14 +81,21 @@ def build_graph(data, labels):
     #     activation=tf.nn.relu)
     # pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4, 4], strides=4)
 
-    # conv3 = tf.layers.conv2d(
-    #     inputs=pool2,
-    #     filters=64,
-    #     kernel_size=[5, 5],
-    #     padding="SAME",
-    #     activation=tf.nn.relu)
-    #
-    # pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
+    conv3 = tf.layers.conv2d(
+        inputs=pool1,
+        filters=32,
+        kernel_size=[3, 3],
+        padding="SAME",
+        activation=tf.nn.relu)
+
+    conv3_2 = tf.layers.conv2d(
+        inputs=conv3,
+        filters=64,
+        kernel_size=[3, 3],
+        padding="SAME",
+        activation=tf.nn.relu)
+
+    pool3 = tf.layers.max_pooling2d(inputs=conv3_2, pool_size=[4, 4], strides=4)
 
     # conv4 = tf.layers.conv2d(
     #     inputs=pool3,
@@ -91,14 +105,14 @@ def build_graph(data, labels):
     #     activation=tf.nn.relu)
     # conv4_2 = tf.layers.conv2d(
     #     inputs=conv4,
-    #     filters=96,
+    #     filters=64,
     #     kernel_size=[5, 5],
     #     padding="SAME",
     #     activation=tf.nn.relu)
     #
-    # pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[2, 2], strides=2)
+    # pool4 = tf.layers.max_pooling2d(inputs=conv4_2, pool_size=[4, 4], strides=4)
 
-    pool3_flat = tf.reshape(pool1, [-1, 32 * 24 * 32])
+    pool3_flat = tf.reshape(pool3, [-1, 32 * 24 * 64])
     dense = tf.layers.dense(inputs=pool3_flat, units=512, activation=tf.nn.relu)
 
     keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -108,9 +122,9 @@ def build_graph(data, labels):
 
     cross_entropy = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=logits))
-    tf.summary.scalar('cross_entropy', cross_entropy)
+    cross_stat = tf.summary.scalar('cross_entropy', cross_entropy)
 
-    train_step = tf.train.AdamOptimizer(1e-3).minimize(cross_entropy)
+    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
@@ -141,7 +155,7 @@ def summaries():
 
 def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , labels, cross_entropy):
     config = tf.ConfigProto()
-    # config.gpu_options.per_process_gpu_memory_fraction = 0.9
+    config.gpu_options.per_process_gpu_memory_fraction = 0.75
 
     performance_summaries, tf_loss_ph, tf_accuracy_ph = summaries()
     with tf.Session(config=config) as sess:
@@ -150,7 +164,9 @@ def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , 
         x_test_images, y_test_labels = get_batches_fn(x_test, y_test, IMAGE_SHAPE)
         writer = tf.summary.FileWriter('.')
         writer.add_graph(tf.get_default_graph())
-        summ_writer = tf.summary.FileWriter(os.path.join('summaries', 'first'), sess.graph)
+        summ_writer = tf.summary.FileWriter(os.path.join('summaries', 'input=512x384;;nearest;cubic;twoKernels;last64;more_data;step=1e-4'), sess.graph)
+        train_writer = tf.summary.FileWriter(os.path.join('summaries', 'input=512x384;;nearest;cubic;twoKernels;last64;more_data;step=1e-4', 'train'), sess.graph)
+
         accuracy_per_epoch = []
 
         print("Test Data Loaded")
@@ -167,7 +183,7 @@ def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , 
 
                 print('\r', end='')  # use '\r' to go back
                 print(str(bid) + '/' + str(len(x_s) / BATCH_SIZE), end="", flush=True)
-                if bid % 40 == 0:
+                if bid == 0:
                     train_accuracy = 0
                     for bid_test in range(math.ceil(len(x_test) / BATCH_SIZE)):
                         num = len(x_test_images) - 1 if (bid_test + 1) * BATCH_SIZE > len(x_test_images) else (bid_test + 1) * BATCH_SIZE
@@ -176,17 +192,19 @@ def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , 
                         train_accuracy += accuracy.eval(feed_dict={
                             input_layer: np.array(batch_test), y_: y_batch_test, keep_prob: 1.0})
                     print('step %d, training accuracy %g' % (i, train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)))
-                    print('step %d, training accuracy %g' % (i, train_accuracy))
-
                     # summ_writer.add_summary(train_accuracy, i)
 
                 # train_step.run(feed_dict={input_layer: batch, y_: y_batch, keep_prob: 0.5})
 
-                loss, _ = sess.run([cross_entropy, train_step],
-                                   feed_dict={input_layer: batch, y_: y_batch,
-                                              keep_prob: 0.5})
+                loss, _, acc = sess.run([cross_entropy, train_step, accuracy],
+                               feed_dict={input_layer: batch, y_: y_batch,
+                                          keep_prob: 0.5})
                 loss_per_epoch.append(loss)
+                summ = sess.run(performance_summaries,
+                                feed_dict={tf_loss_ph: loss,
+                                           tf_accuracy_ph: acc})
 
+                train_writer.add_summary(summ, i*math.ceil(len(x_s) / BATCH_SIZE) + bid)
 
             print('Average loss in epoch %d: %.5f' % (i, np.mean(loss_per_epoch)))
             avg_loss = np.mean(loss_per_epoch)
@@ -194,7 +212,7 @@ def start_session(input_layer, x, output, train_step, y_, keep_prob, accuracy , 
                                feed_dict={tf_loss_ph: avg_loss, tf_accuracy_ph: train_accuracy/math.ceil(len(x_test_images) / BATCH_SIZE)})
 
             # Write the obtained summaries to the file, so it can be displayed in the Tensorboard
-            summ_writer.add_summary(summ, i)
+            summ_writer.add_summary(summ, i*math.ceil(len(x_s) / BATCH_SIZE))
 
         save_model(sess, x, output, keep_prob)
 
@@ -207,12 +225,12 @@ def save_model(sess, x, output, keep_prob):
 
     inputs = {
         "keep_prob": keep_prob,
-        "x": x
+        "input": x
     }
     outputs = {
         "output": output
     }
-    tf.saved_model.simple_save(sess, './simple/saved_model', inputs, outputs)
+    tf.saved_model.simple_save(sess, './saved_model_class/simple', inputs, outputs)
     tf.get_default_graph()
     saver = tf.train.Saver(write_version=saver_pb2.SaverDef.V2)
     saver.save(sess, "./saved_model_class/saved_model.ckpt")
@@ -229,13 +247,21 @@ def get_batches_fn(batch, y_batch, image_shape):
     labels = []
     for i, (image_file, label) in enumerate(zip(batch, y_batch)):
         try:
-            img = imutils.rotate_bound(scipy.misc.imread(image_file, mode='RGB'), 90)
+            img = scipy.misc.imread(image_file, mode='RGB')
+            if image_file.split('.')[-1] != 'jpeg':
+                img = imutils.rotate_bound(img, 90)
             if img is not None:
                 img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                img = scipy.misc.imresize(img, image_shape)  / 255
-                images.append(img)
+                if random.random() < 0.5:
+                    neares = cv2.resize(img, (image_shape[1],image_shape[0]), interpolation=cv2.INTER_NEAREST)  / 255
+                    images.append(neares)
 
-                labels.append(label)
+                    labels.append(label)
+                else:
+                    cubic = cv2.resize(img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_CUBIC) / 255
+                    images.append(cubic)
+
+                    labels.append(label)
                 # print("\r import data {:d}/{:d}".format(i, len(batch)), end="")
                 # sys.stdout.flush()
 
@@ -244,13 +270,16 @@ def get_batches_fn(batch, y_batch, image_shape):
             pass
     return np.array(images), np.array(labels)
 
-
 if __name__ == '__main__':
     with_card = []
     with_card = prepare_data("./sharpness_set/True", with_card)
+    with_card += prepare_data("./sharpness_set/second_true", with_card)
+
     without_card = []
     print(np.shape(with_card))
     without_card = prepare_data("./sharpness_set/False", without_card)
+    without_card += prepare_data("./sharpness_set/second_false", without_card)
+
     data = with_card + without_card
     y = [[1,0] for x in with_card]
     y += [[0,1] for x in without_card]
