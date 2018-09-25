@@ -1,5 +1,4 @@
 # --------------------------
-# USER-SPECIFIED DATA
 # --------------------------
 import time
 
@@ -18,7 +17,7 @@ DROPOUT = 0.75
 
 data_dir = './data'
 runs_dir = './runs'
-training_dir = './training_set_500'
+training_dir = './training_set_2'
 vgg_path = './data/vgg'
 
 # --------------------------
@@ -192,7 +191,7 @@ def run():
         }
         outputs = {"y": logits}
         tf.saved_model.simple_save(
-            session,'./saved_model', inputs, outputs
+            session,'./saved_model_with_cubic', inputs, outputs
         )
         # Run the model with the test images and save each painted output image (roads painted green)
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input, output_shape)

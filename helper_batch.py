@@ -1,3 +1,4 @@
+import cv2
 import re
 import random
 import numpy as np
@@ -61,7 +62,7 @@ def maybe_download_pretrained_vgg(data_dir):
 def gen_batch_function(data_folder, image_shape, output_shape):
     """
     Generate function to create batches of training data
-    :param data_folder: Path to folder that contains all the datasets
+    :param data_folder: Path to folder that git tains all the datasets
     :param image_shape: Tuple - Shape of image
     :return:
     """
@@ -77,18 +78,25 @@ def gen_batch_function(data_folder, image_shape, output_shape):
         image_path = 'origin.jpg'
         masks_path = ['Box1.jpg', 'Box2.jpg']
         random.shuffle(image_paths)
-        for batch_i in range(0, len(image_paths), batch_size):
+        for batch_i in range(0,10, batch_size):
             images = []
             gt_images = []
             for image_file in image_paths[batch_i:batch_i+batch_size]:
                 try:
-                    image = (scipy.misc.imresize(imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file, image_path)), 90), image_shape) - 125) / 255
+                    img = imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file, image_path), mode='RGB'), 90)
+                    img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                    if random.random() < 0.5:
+                        image = cv2.resize(img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST) / 255
+                    else:
+                        image = cv2.resize(img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_CUBIC) / 255
                     labels = None
 
                     for mask_path in masks_path:
                         gt_image = None
                         try:
-                            gt_image = scipy.misc.imresize(scipy.misc.imread(os.path.join(data_folder, image_file, mask_path)), output_shape)
+                            gt_image = scipy.misc.imread(os.path.join(data_folder, image_file, mask_path))
+                            gt_image = cv2.resize(gt_image, (image_shape[1], image_shape[0]),
+                                               interpolation=cv2.INTER_CUBIC) / 255
                         except Exception as e:
                             print(e)
                             pass
@@ -127,11 +135,19 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape,
     :return: Output for for each test image
     """
     for image_file in os.listdir(data_folder):
-        image = scipy.misc.imresize(
-            imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), image_shape)
+
+        img = imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file), mode='RGB'), 90)
+        img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        if random.random() < 0.5:
+            image = cv2.resize(img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST) / 255
+        else:
+            image = cv2.resize(img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_CUBIC) / 255
+
+
+
         output_image = scipy.misc.imresize(
             imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), output_shape)
-        input = (image - 125) / 255
+        input = image / 255
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
             {keep_prob: 1.0, image_pl: [input]})
