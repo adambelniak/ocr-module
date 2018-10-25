@@ -1,0 +1,56 @@
+bazel-bin/tensorflow/tools/graph_transforms/transform_graph \
+--in_graph=/Users/adam/PycharmProjects/tensorFlow1/save_class/frozen_saved_model.pb \
+--out_graph=/Users/adam/PycharmProjects/tensorFlow1/save_class/opt_frozen_ocr.pb \
+--inputs='keep_prob,input' \
+--outputs='output' \
+--transforms='
+remove_device
+  strip_unused_nodes(type_for_name=float, name=keep_prob, shape="1", name=input, shape="1,512,384,3")
+  remove_nodes(op=Identity, op=CheckNumerics)
+  fold_constants(ignore_errors=true)
+  fold_batch_norms
+  fold_old_batch_norms
+  round_weights(num_steps=500)
+quantize_weights
+quantize_nodes(fallback_min=-1, fallback_max=1, input_min=0, input_max=1)
+
+
+    strip_unused_nodes
+  sort_by_execution_order'
+
+
+
+bazel-bin/tensorflow/tools/benchmark/benchmark_model \
+--graph=/Users/adam/PycharmProjects/tensorFlow1/save_class/frozen_saved_model.pb \
+--input_layer="keep_prob,input" \
+--input_layer_shape="1:1,512,384,3" --input_layer_type="float,float" \
+--output_layer="output" --show_run_order=false --show_time=false \
+--show_memory=true --show_summary=true --show_flops=true
+
+
+
+bazel-bin/tensorflow/tools/benchmark/benchmark_model \
+--graph=/Users/adam/PycharmProjects/tensorFlow1/frozen_cubic/opt_frozen_ocr.pb \
+--input_layer="keep_prob,input,thresh" \
+--input_layer_shape="1:1,512,384,3:1" --input_layer_type="quint8,float,quint8" \
+--output_layer="mask_1,mask_2" --show_run_order=false --show_time=false \
+--show_memory=true --show_summary=true --show_flops=true
+
+
+
+bazel-bin/tensorflow/tools/graph_transforms/transform_graph \
+--in_graph=/Users/adam/PycharmProjects/tensorFlow1/frozen_cubic/frozen_ocr.pb \
+--out_graph=/Users/adam/PycharmProjects/tensorFlow1/frozen_cubic/opt_frozen_ocr.pb \
+--inputs='keep_prob,thresh,input' \
+--outputs='mask_1,mask_2' \
+--transforms='
+remove_device
+  remove_nodes(op=Identity, op=CheckNumerics)
+  fold_constants(ignore_errors=true)
+  fold_batch_norms
+  fold_old_batch_norms
+  round_weights(num_steps=256)
+quantize_weights
+
+    strip_unused_nodes
+  sort_by_execution_order'
