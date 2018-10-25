@@ -96,7 +96,7 @@ def gen_batch_function(data_folder, image_shape, output_shape):
                         try:
                             gt_image = scipy.misc.imread(os.path.join(data_folder, image_file, mask_path))
                             gt_image = cv2.resize(gt_image, (image_shape[1], image_shape[0]),
-                                               interpolation=cv2.INTER_CUBIC) / 255
+                                               interpolation=cv2.INTER_CUBIC)
                         except Exception as e:
                             pass
                         if gt_image is None:
@@ -145,7 +145,7 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape,
 
         output_image = scipy.misc.imresize(
             imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file)), 90), output_shape)
-        input = image / 255
+        input = image
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
             {keep_prob: 1.0, image_pl: [input]})
