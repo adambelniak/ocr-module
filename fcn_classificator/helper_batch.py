@@ -1,62 +1,12 @@
 import cv2
-import re
 import random
 import numpy as np
 import os.path
 import scipy.misc
 import shutil
-import zipfile
 import time
 import tensorflow as tf
-from glob import glob
-from urllib.request import urlretrieve
-from tqdm import tqdm
 import imutils
-
-class DLProgress(tqdm):
-    last_block = 0
-
-    def hook(self, block_num=1, block_size=1, total_size=None):
-        self.total = total_size
-        self.update((block_num - self.last_block) * block_size)
-        self.last_block = block_num
-
-
-def maybe_download_pretrained_vgg(data_dir):
-    """
-    Download and extract pretrained vgg model if it doesn't exist
-    :param data_dir: Directory to download the model to
-    """
-    vgg_filename = 'vgg.zip'
-    vgg_path = os.path.join(data_dir, 'vgg')
-    vgg_files = [
-        os.path.join(vgg_path, 'variables/variables.data-00000-of-00001'),
-        os.path.join(vgg_path, 'variables/variables.index'),
-        os.path.join(vgg_path, 'saved_model.pb')]
-
-    missing_vgg_files = [vgg_file for vgg_file in vgg_files if not os.path.exists(vgg_file)]
-    if missing_vgg_files:
-        # Clean vgg dir
-        if os.path.exists(vgg_path):
-            shutil.rmtree(vgg_path)
-        os.makedirs(vgg_path)
-
-        # Download vgg
-        print('Downloading pre-trained vgg model...')
-        with DLProgress(unit='B', unit_scale=True, miniters=1) as pbar:
-            urlretrieve(
-                'https://s3-us-west-1.amazonaws.com/udacity-selfdrivingcar/vgg.zip',
-                os.path.join(vgg_path, vgg_filename),
-                pbar.hook)
-
-        # Extract vgg
-        print('Extracting model...')
-        zip_ref = zipfile.ZipFile(os.path.join(vgg_path, vgg_filename), 'r')
-        zip_ref.extractall(data_dir)
-        zip_ref.close()
-
-        # Remove zip file to save space
-        os.remove(os.path.join(vgg_path, vgg_filename))
 
 
 def gen_batch_function(data_folder, image_shape, output_shape):
@@ -96,7 +46,7 @@ def gen_batch_function(data_folder, image_shape, output_shape):
                         try:
                             gt_image = scipy.misc.imread(os.path.join(data_folder, image_file, mask_path))
                             gt_image = cv2.resize(gt_image, (image_shape[1], image_shape[0]),
-                                               interpolation=cv2.INTER_CUBIC)
+                                        interpolation=cv2.INTER_CUBIC)
                         except Exception as e:
                             pass
                         if gt_image is None:
@@ -159,7 +109,7 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape,
         yield os.path.basename(image_file), np.array(street_im)
 
 
-def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image, output_shape):
+def save_inference_samples(runs_dir, sess, image_shape, logits, keep_prob, input_image, output_shape):
     # Make folder for current run
     output_dir = os.path.join(runs_dir, str(time.time()))
     if os.path.exists(output_dir):
