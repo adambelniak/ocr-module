@@ -3,13 +3,15 @@ import tensorflow as tf
 import fcn_classificator.helper_batch as helper
 import os
 import utils.performance as performance
+import numpy as np
 
+from fcn_classificator.metrics import create_metrics_for_one
 
 NUM_CLASSES = 3
 IMAGE_SHAPE = (512, 384)
 OUTPUT_SHAPE = (IMAGE_SHAPE[0] * 1, IMAGE_SHAPE[1] * 1)
 EPOCHS = 20
-BATCH_SIZE = 6
+BATCH_SIZE = 8
 DROPOUT = 0.5
 
 # Specify these directory paths
@@ -127,66 +129,18 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     :param num_classes:int, number of image segment which we want obtain
     :return: last layers of FCN,
     """
+    metrics = create_metrics_for_one(tf.reshape(nn_last_layer, (BATCH_SIZE, -1, num_classes)), tf.reshape(correct_label,
+                                         (BATCH_SIZE, -1, num_classes), ), BATCH_SIZE)
+
     logits = tf.reshape(nn_last_layer, (-1, num_classes), name="fcn_logits")
     correct_label_reshaped = tf.reshape(correct_label, (-1, num_classes))
 
-    metrics = create_metrics(logits, correct_label_reshaped)
     # Calculate distance from actual labels using cross entropy
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label_reshaped[:])
     # Take mean for total loss
     loss_op = tf.reduce_mean(cross_entropy, name="fcn_loss")
     train_op = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_op, name="fcn_train_op")
-
     return logits, train_op, loss_op, metrics
-
-
-def create_metrics(logits, correct_label_reshaped):
-    """Calculate IoU metric for each mask and reduce mean
-
-    :param logits: output from last layer
-    :param correct_label_reshaped:
-    :return: mean of accuracy per mask
-    """
-    softmax = tf.nn.softmax(logits)
-    correct_label_reshaped = tf.cast(correct_label_reshaped, tf.int32)
-
-    mask_1 = tf.reduce_sum(tf.cast(softmax[:, 1] > 0.5, tf.int32))
-    mask_2 = tf.cast(softmax[:, 2] > 0.5, tf.int32)
-    # iou_mask_1 = tf.reduce_mean(calculate_IoU_metric(mask_1, correct_label_reshaped[:, 1]))
-    iou_mask_2 = tf.reduce_mean(calculate_IoU_metric(mask_2, correct_label_reshaped[:, 2]))
-    #
-    # accuracy_mask_1 = tf.reduce_mean(calculate_accuracy_metric(mask_1, correct_label_reshaped[:, 1]))
-    # accuracy_mask_2 = tf.reduce_mean(calculate_accuracy_metric(mask_2, correct_label_reshaped[:, 2]))
-
-    return { "iou_m_1": mask_1, "iou_m_2": iou_mask_2}
-
-
-def calculate_IoU_metric(predicted_labels, trn_labels):
-    """Calculate IoU metric
-
-    :param predicted_labels: array of boolean,
-    :param trn_labels: array of boolean,
-    :return: IoU metric = TP / (FP + TP + FN)
-    """
-    inter = tf.reduce_sum(tf.multiply(predicted_labels, trn_labels))
-    union = tf.reduce_sum(tf.subtract(tf.add(predicted_labels, trn_labels), tf.multiply(predicted_labels, trn_labels)))
-
-    IoU = tf.divide(inter, union)
-    return IoU
-
-
-def calculate_accuracy_metric(predicted_labels, trn_labels):
-    """Calculate accuracy metric per single mask
-
-    :param predicted_labels: array of boolean,
-    :param trn_labels: array of boolean,
-    :return: IoU metric = TP / (FP + FN)
-    """
-    correctly_predicted = tf.reduce_sum(tf.multiply(predicted_labels, trn_labels))
-    true_label = tf.reduce_sum(trn_labels)
-
-    accuracy = tf.divide(correctly_predicted, true_label)
-    return accuracy
 
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
@@ -194,27 +148,53 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
              correct_label, keep_prob, learning_rate, logits,
              image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes):
 
-    learning_rate_value = 0.001
+    train_writer = tf.summary.FileWriter(os.path.join('train_summaries', 'standard'), sess.graph)
+    learning_rate_value = 0.005
+    performance_summaries = tf.summary.merge(scalars_metrics)
+
     print("START TRAINING")
     for epoch in range(epochs):
         total_loss = 0
+        accuracy = []
+        IoU = []
         for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
             loss, _, acc = sess.run([cross_entropy_loss, train_op, metrics_nodes],
                                feed_dict={input_image: X_batch, correct_label: gt_batch,
                                           keep_prob: DROPOUT, learning_rate: learning_rate_value})
 
-
             print(acc)
             total_loss += loss
+            accuracy.append([acc["recall_m_1"], acc["recall_m_2"]])
+            IoU.append([acc["iou_m_1"], acc["iou_m_2"]])
+
         folder = os.path.join(runs_dir, str(epoch))
         try:
             os.mkdir(folder)
         except:
             pass
-        helper.save_inference_samples(folder, sess, image_shape, logits, keep_prob, input_image, output_shape)
+        accuracy = np.nan_to_num(np.nanmean(accuracy, axis=0))
+        IoU = np.nan_to_num(np.nanmean(IoU, axis=0))
+        performance.write_summaries(sess, performance_summaries, {placeholders_metric[0]: accuracy[0], placeholders_metric[1]: accuracy[1], placeholders_metric[2]: IoU[0], placeholders_metric[3]: IoU[1]}, train_writer, epoch)
+
+        print(accuracy)
+        print(IoU)
 
         print("EPOCH {} ...".format(epoch + 1))
         print("Loss = {:.3f}".format(total_loss))
+
+
+# def remove_nan_values(summaries_array):
+#     non_nan = []
+#     for arr in summaries_array:
+#         new_val = []
+#         for value in arr:
+#             if not np.isnan(value):
+#                 new_val.append(value)
+#         if len(new_val):
+#             non_nan.append(new_val)
+#         else:
+#             non_nan.append([0])
+#     return non_nan
 
 
 def run():
@@ -227,15 +207,17 @@ def run():
     placeholders_metric = []
 
     with tf.Session() as session:
+
         image_input, keep_prob, layer3, layer4, layer7 = build_convolutional_graph(image_shape)
 
         model_output = layers(layer3, layer4, layer7, NUM_CLASSES)
         logits, train_op, cross_entropy_loss, metrics_nodes = optimize(model_output, correct_label, learning_rate, NUM_CLASSES)
 
-        for metric in metrics_nodes.keys():
-            tf_scalar_summary, tf_placeholder = performance.summaries("performance", metric + "summary", metric)
-            scalars_metrics.append(tf_scalar_summary)
-            placeholders_metric.append(tf_placeholder)
+        with tf.name_scope("performance"):
+            for metric in metrics_nodes.keys():
+                tf_scalar_summary, tf_placeholder = performance.summaries(metric + "summary", metric)
+                scalars_metrics.append(tf_scalar_summary)
+                placeholders_metric.append(tf_placeholder)
 
         # Initiasze all variables
         session.run(tf.global_variables_initializer())
@@ -252,6 +234,7 @@ def run():
                  CORRECT_LABEL, keep_prob, LEARNING_RATE,
                  logits, image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes)
         elapsed_time = time.time() - start_time
+
         inputs = {
             "keep_prob": keep_prob,
             "x": image_input,
