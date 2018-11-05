@@ -14,15 +14,15 @@ def create_metrics_for_one(logits, correct_label_reshaped, batch_size):
     softmax = tf.nn.softmax(logits)
     correct_label_reshaped = tf.cast(correct_label_reshaped, tf.int32)
     metrics = {"recall_m_1": [], "recall_m_2": [], "iou_m_1": [], "iou_m_2": []}
-    for i in range(batch_size):
-        mask_1 = tf.cast(softmax[i, :, 1] > 0.5, tf.int32)
-        mask_2 = tf.cast(softmax[i, :, 2] > 0.5, tf.int32)
+    for i in range(1):
+        mask_1 = tf.cast(softmax[:, :, 1] > 0.5, tf.int32)
+        mask_2 = tf.cast(softmax[:, :, 2] > 0.5, tf.int32)
 
-        metrics["iou_m_1"].append(calculate_IoU_metric(mask_1, correct_label_reshaped[i, :, 1]))
-        metrics["iou_m_2"].append(calculate_IoU_metric(mask_2, correct_label_reshaped[i, :, 2]))
+        metrics["iou_m_1"].append(calculate_IoU_metric(mask_1, correct_label_reshaped[:, :, 1]))
+        metrics["iou_m_2"].append(calculate_IoU_metric(mask_2, correct_label_reshaped[:, :, 2]))
 
-        metrics["recall_m_1"].append(calculate_recall_metric(mask_1, correct_label_reshaped[i, :, 1]))
-        metrics["recall_m_2"].append(calculate_recall_metric(mask_2, correct_label_reshaped[i, :, 2]))
+        metrics["recall_m_1"].append(calculate_recall_metric(mask_1, correct_label_reshaped[:, :, 1]))
+        metrics["recall_m_2"].append(calculate_recall_metric(mask_2, correct_label_reshaped[:, :, 2]))
 
     for key in metrics.keys():
         mask = tf.greater(tf.stack(metrics[key]), -1.0)

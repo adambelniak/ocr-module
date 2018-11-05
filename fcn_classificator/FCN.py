@@ -4,13 +4,14 @@ import fcn_classificator.helper_batch as helper
 import os
 import utils.performance as performance
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 from fcn_classificator.metrics import create_metrics_for_one
 
 NUM_CLASSES = 3
 IMAGE_SHAPE = (512, 384)
 OUTPUT_SHAPE = (IMAGE_SHAPE[0] * 1, IMAGE_SHAPE[1] * 1)
-EPOCHS = 20
+EPOCHS = 3
 BATCH_SIZE = 8
 DROPOUT = 0.5
 
@@ -148,30 +149,45 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
              correct_label, keep_prob, learning_rate, logits,
              image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes):
 
-    train_writer = tf.summary.FileWriter(os.path.join('train_summaries', 'standard'), sess.graph)
+    train_writer = tf.summary.FileWriter(os.path.join('train_summaries', 'drugi'), sess.graph)
     learning_rate_value = 0.005
-    performance_summaries = tf.summary.merge(scalars_metrics)
+    performance_summaries = tf.summary.merge_all()
 
     print("START TRAINING")
     for epoch in range(epochs):
         total_loss = 0
         accuracy = []
         IoU = []
+        run_options = None
+        run_metadata = None
+
+        if epoch % 10 == 0:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+
         for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
             loss, _, acc = sess.run([cross_entropy_loss, train_op, metrics_nodes],
-                               feed_dict={input_image: X_batch, correct_label: gt_batch,
-                                          keep_prob: DROPOUT, learning_rate: learning_rate_value})
-
+                                    feed_dict={input_image: X_batch, correct_label: gt_batch,
+                                               keep_prob: DROPOUT, learning_rate: learning_rate_value},
+                                    options=run_options,
+                                    run_metadata=run_metadata
+                                    )
             print(acc)
             total_loss += loss
             accuracy.append([acc["recall_m_1"], acc["recall_m_2"]])
             IoU.append([acc["iou_m_1"], acc["iou_m_2"]])
 
-        folder = os.path.join(runs_dir, str(epoch))
-        try:
-            os.mkdir(folder)
-        except:
-            pass
+        test_accuracy = []
+        for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
+            test_accuracy.append(
+                sess.run([metrics_nodes], feed_dict={input_image: X_batch, correct_label: gt_batch,
+                                                     keep_prob: 1.0, }))
+        # print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
+        print(test_accuracy)
+
+        if epoch % 10 == 0:
+            train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
+
         accuracy = np.nan_to_num(np.nanmean(accuracy, axis=0))
         IoU = np.nan_to_num(np.nanmean(IoU, axis=0))
         performance.write_summaries(sess, performance_summaries, {placeholders_metric[0]: accuracy[0], placeholders_metric[1]: accuracy[1], placeholders_metric[2]: IoU[0], placeholders_metric[3]: IoU[1]}, train_writer, epoch)
@@ -183,18 +199,14 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         print("Loss = {:.3f}".format(total_loss))
 
 
-# def remove_nan_values(summaries_array):
-#     non_nan = []
-#     for arr in summaries_array:
-#         new_val = []
-#         for value in arr:
-#             if not np.isnan(value):
-#                 new_val.append(value)
-#         if len(new_val):
-#             non_nan.append(new_val)
-#         else:
-#             non_nan.append([0])
-#     return non_nan
+def split_data_set(training_dir, image_shape, output_shape):
+    list_path = os.listdir(training_dir)[:30]
+    x_train, x_test = train_test_split(list_path, test_size=0.25)
+
+    get_batches_fn = helper.gen_batch_function(training_dir, x_train, image_shape, output_shape)
+    get_batches_fn_train = helper.gen_batch_function(training_dir, x_test, image_shape, output_shape)
+
+    return get_batches_fn, get_batches_fn_train
 
 
 def run():
@@ -202,7 +214,7 @@ def run():
     output_shape = OUTPUT_SHAPE
     correct_label = CORRECT_LABEL
     learning_rate = LEARNING_RATE
-    get_batches_fn = helper.gen_batch_function(training_dir, image_shape, output_shape)
+    get_batches_fn, get_batches_fn_train = split_data_set(training_dir, image_shape, output_shape)
     scalars_metrics = []
     placeholders_metric = []
 

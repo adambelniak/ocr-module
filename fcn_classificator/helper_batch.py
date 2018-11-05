@@ -9,7 +9,7 @@ import tensorflow as tf
 import imutils
 
 
-def gen_batch_function(data_folder, image_shape, output_shape):
+def gen_batch_function(image_dir, image_paths, image_shape, output_shape):
     """
     Generate function to create batches of training data
     :param data_folder: Path to folder that git tains all the datasets
@@ -22,18 +22,17 @@ def gen_batch_function(data_folder, image_shape, output_shape):
         :param batch_size: Batch Size
         :return: Batches of training data
         """
-        image_paths = os.listdir(data_folder)
 
         background_color = np.array([255, 255, 255])
         image_path = 'origin.jpg'
         masks_path = ['Box11.jpg', 'Box16.jpg']
         random.shuffle(image_paths)
-        for batch_i in range(0,len(image_paths), batch_size):
+        for batch_i in range(0, len(image_paths), batch_size):
             images = []
             gt_images = []
             for image_file in image_paths[batch_i:batch_i+batch_size]:
                 try:
-                    img = imutils.rotate_bound(scipy.misc.imread(os.path.join(data_folder, image_file, image_path), mode='RGB'), 90)
+                    img = imutils.rotate_bound(scipy.misc.imread(os.path.join(image_dir, image_file, image_path), mode='RGB'), 90)
                     img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                     if random.random() < 0.5:
                         image = cv2.resize(img, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST) / 255
@@ -44,7 +43,7 @@ def gen_batch_function(data_folder, image_shape, output_shape):
                     for mask_path in masks_path:
                         gt_image = None
                         try:
-                            gt_image = scipy.misc.imread(os.path.join(data_folder, image_file, mask_path))
+                            gt_image = scipy.misc.imread(os.path.join(image_dir, image_file, mask_path))
                             gt_image = cv2.resize(gt_image, (image_shape[1], image_shape[0]),
                                         interpolation=cv2.INTER_CUBIC)
                         except Exception as e:
