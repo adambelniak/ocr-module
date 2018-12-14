@@ -12,7 +12,7 @@ NUM_CLASSES = 3
 IMAGE_SHAPE = (512, 384)
 OUTPUT_SHAPE = (IMAGE_SHAPE[0] * 1, IMAGE_SHAPE[1] * 1)
 EPOCHS = 30
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 DROPOUT = 0.5
 
 # Specify these directory paths
@@ -204,7 +204,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
 
 
 def split_data_set(training_dir, image_shape, output_shape):
-    list_path = os.listdir(training_dir)[:80]
+    list_path = os.listdir(training_dir)
     x_train, x_test = train_test_split(list_path, test_size=0.25)
 
     get_batches_fn = helper.gen_batch_function(training_dir, x_train, image_shape, output_shape)
