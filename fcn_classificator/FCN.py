@@ -17,7 +17,6 @@ DROPOUT = 0.5
 
 # Specify these directory paths
 runs_dir = './runs'
-training_dir = '../training_set_500'
 
 # --------------------------
 # PLACEHOLDER TENSORS
@@ -214,7 +213,7 @@ def split_data_set(training_dir, image_shape, output_shape):
     return get_batches_fn, get_batches_fn_train
 
 
-def run():
+def run(training_dir='../training_set_500'):
     image_shape = IMAGE_SHAPE
     output_shape = OUTPUT_SHAPE
     correct_label = CORRECT_LABEL
