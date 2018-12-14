@@ -16,7 +16,7 @@ def gen_batch_function(image_dir, image_paths, image_shape, output_shape):
     :param image_shape: Tuple - Shape of image
     :return:
     """
-    def get_batches_fn(batch_size):
+    def get_batches_fn(batch_size, should_schuffle=True):
         """
         Create batches of training data
         :param batch_size: Batch Size
@@ -26,7 +26,8 @@ def gen_batch_function(image_dir, image_paths, image_shape, output_shape):
         background_color = np.array([255, 255, 255])
         image_path = 'origin.jpg'
         masks_path = ['Box11.jpg', 'Box16.jpg']
-        random.shuffle(image_paths)
+        if should_schuffle:
+            random.shuffle(image_paths)
         for batch_i in range(0, len(image_paths), batch_size):
             images = []
             gt_images = []

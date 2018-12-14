@@ -1,5 +1,15 @@
 import tensorflow as tf
 import numpy as np
+from tensorflow.python import debug as tf_debug
+
+def generate_image(logits, image_shape):
+    with tf.name_scope('test_image_preview'):
+        softmax = tf.nn.softmax(logits)
+        mask_1 = tf.cast(softmax[:, 1] > 0.5, tf.float32)
+        mask_2 = tf.cast(softmax[:, 2] > 0.5, tf.float32)
+        image_shaped_input = tf.reshape(mask_1, [-1, *image_shape, 1])
+        return tf.summary.image('input_preview', image_shaped_input, 8)
+
 
 def create_metrics_for_one(logits, correct_label_reshaped, batch_size):
     """Calculate IoU metric for each mask and reduce mean
@@ -14,15 +24,14 @@ def create_metrics_for_one(logits, correct_label_reshaped, batch_size):
     softmax = tf.nn.softmax(logits)
     correct_label_reshaped = tf.cast(correct_label_reshaped, tf.int32)
     metrics = {"recall_m_1": [], "recall_m_2": [], "iou_m_1": [], "iou_m_2": []}
-    for i in range(1):
-        mask_1 = tf.cast(softmax[:, :, 1] > 0.5, tf.int32)
-        mask_2 = tf.cast(softmax[:, :, 2] > 0.5, tf.int32)
+    mask_1 = tf.cast(softmax[:, :, 1] > 0.5, tf.int32)
+    mask_2 = tf.cast(softmax[:, :, 2] > 0.5, tf.int32)
 
-        metrics["iou_m_1"].append(calculate_IoU_metric(mask_1, correct_label_reshaped[:, :, 1]))
-        metrics["iou_m_2"].append(calculate_IoU_metric(mask_2, correct_label_reshaped[:, :, 2]))
+    metrics["iou_m_1"].append(calculate_IoU_metric(mask_1, correct_label_reshaped[:, :, 1]))
+    metrics["iou_m_2"].append(calculate_IoU_metric(mask_2, correct_label_reshaped[:, :, 2]))
 
-        metrics["recall_m_1"].append(calculate_recall_metric(mask_1, correct_label_reshaped[:, :, 1]))
-        metrics["recall_m_2"].append(calculate_recall_metric(mask_2, correct_label_reshaped[:, :, 2]))
+    metrics["recall_m_1"].append(calculate_recall_metric(mask_1, correct_label_reshaped[:, :, 1]))
+    metrics["recall_m_2"].append(calculate_recall_metric(mask_2, correct_label_reshaped[:, :, 2]))
 
     for key in metrics.keys():
         mask = tf.greater(tf.stack(metrics[key]), -1.0)

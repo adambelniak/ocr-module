@@ -5,13 +5,13 @@ import os
 import utils.performance as performance
 import numpy as np
 from sklearn.model_selection import train_test_split
-
-from fcn_classificator.metrics import create_metrics_for_one
+from tensorflow.python import debug as tf_debug
+from fcn_classificator.metrics import create_metrics_for_one, generate_image
 
 NUM_CLASSES = 3
 IMAGE_SHAPE = (512, 384)
 OUTPUT_SHAPE = (IMAGE_SHAPE[0] * 1, IMAGE_SHAPE[1] * 1)
-EPOCHS = 3
+EPOCHS = 10
 BATCH_SIZE = 8
 DROPOUT = 0.5
 
@@ -146,12 +146,12 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
              cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate, logits,
+             correct_label, keep_prob, learning_rate, images,
              image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes):
 
     train_writer = tf.summary.FileWriter(os.path.join('train_summaries', 'drugi'), sess.graph)
     learning_rate_value = 0.005
-    performance_summaries = tf.summary.merge_all()
+    performance_summaries = tf.summary.merge_all(scope='performance')
 
     print("START TRAINING")
     for epoch in range(epochs):
@@ -161,10 +161,10 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
         run_options = None
         run_metadata = None
 
-        if epoch % 10 == 0:
-            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-            run_metadata = tf.RunMetadata()
-
+        # if epoch % 10 == 0:
+        #     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        #     run_metadata = tf.RunMetadata()
+        #
         for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
             loss, _, acc = sess.run([cross_entropy_loss, train_op, metrics_nodes],
                                     feed_dict={input_image: X_batch, correct_label: gt_batch,
@@ -182,11 +182,16 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
             test_accuracy.append(
                 sess.run([metrics_nodes], feed_dict={input_image: X_batch, correct_label: gt_batch,
                                                      keep_prob: 1.0, }))
-        # print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
-        print(test_accuracy)
 
-        if epoch % 10 == 0:
-            train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
+            if i == 0:
+                img = sess.run(images, feed_dict={input_image: X_batch, correct_label: gt_batch,
+                                                  keep_prob: 1.0, })
+                train_writer.add_summary(img, 1)
+
+        # print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
+        # print(test_accuracy)
+        # if epoch % 10 == 0:
+        #     train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
 
         accuracy = np.nan_to_num(np.nanmean(accuracy, axis=0))
         IoU = np.nan_to_num(np.nanmean(IoU, axis=0))
@@ -200,7 +205,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
 
 
 def split_data_set(training_dir, image_shape, output_shape):
-    list_path = os.listdir(training_dir)[:30]
+    list_path = os.listdir(training_dir)[:80]
     x_train, x_test = train_test_split(list_path, test_size=0.25)
 
     get_batches_fn = helper.gen_batch_function(training_dir, x_train, image_shape, output_shape)
@@ -218,6 +223,9 @@ def run():
     scalars_metrics = []
     placeholders_metric = []
 
+    sess = tf.Session()
+    sess = tf_debug.TensorBoardDebugWrapperSession(sess, 'localhost:6064')
+
     with tf.Session() as session:
 
         image_input, keep_prob, layer3, layer4, layer7 = build_convolutional_graph(image_shape)
@@ -230,6 +238,9 @@ def run():
                 tf_scalar_summary, tf_placeholder = performance.summaries(metric + "summary", metric)
                 scalars_metrics.append(tf_scalar_summary)
                 placeholders_metric.append(tf_placeholder)
+
+        images = generate_image(logits, IMAGE_SHAPE)
+        images = tf.summary.merge([images])
 
         # Initiasze all variables
         session.run(tf.global_variables_initializer())
@@ -244,7 +255,7 @@ def run():
         train_nn(session, EPOCHS, BATCH_SIZE, get_batches_fn,
                  train_op, cross_entropy_loss, image_input,
                  CORRECT_LABEL, keep_prob, LEARNING_RATE,
-                 logits, image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes)
+                 images, image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes)
         elapsed_time = time.time() - start_time
 
         inputs = {
@@ -255,7 +266,7 @@ def run():
         tf.saved_model.simple_save(
             session,'./saved_model_with_cubic', inputs, outputs
         )
-        # Run the model with the test images and save each painted output image (roads painted green)
+
         helper.save_inference_samples(runs_dir, session, image_shape, logits, keep_prob, image_input, output_shape)
         print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
         print("All done!")
