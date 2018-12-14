@@ -177,24 +177,24 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
             IoU.append([acc["iou_m_1"], acc["iou_m_2"]])
 
         test_accuracy = []
-        # for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
-        #     test_accuracy.append(
-        #         sess.run([metrics_nodes], feed_dict={input_image: X_batch, correct_label: gt_batch,
-        #                                              keep_prob: 1.0, }))
-        #
-        #     if i == 0:
-        #         img = sess.run(images, feed_dict={input_image: X_batch, correct_label: gt_batch,
-        #                                           keep_prob: 1.0, })
-        #         train_writer.add_summary(img, 1)
+        for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
+            test_accuracy.append(
+                sess.run([metrics_nodes], feed_dict={input_image: X_batch, correct_label: gt_batch,
+                                                     keep_prob: 1.0, }))
 
-        # print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
-        # print(test_accuracy)
-        # if epoch % 10 == 0:
-        #     train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
+            # if i == 0:
+            #     img = sess.run(images, feed_dict={input_image: X_batch, correct_label: gt_batch,
+            #                                       keep_prob: 1.0, })
+            #     train_writer.add_summary(img, 1)
+
+        print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
+        print(test_accuracy)
+        if epoch % 10 == 0:
+            train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
 
         accuracy = np.nan_to_num(np.nanmean(accuracy, axis=0))
         IoU = np.nan_to_num(np.nanmean(IoU, axis=0))
-        # performance.write_summaries(sess, performance_summaries, {placeholders_metric[0]: accuracy[0], placeholders_metric[1]: accuracy[1], placeholders_metric[2]: IoU[0], placeholders_metric[3]: IoU[1]}, train_writer, epoch)
+        performance.write_summaries(sess, performance_summaries, {placeholders_metric[0]: accuracy[0], placeholders_metric[1]: accuracy[1], placeholders_metric[2]: IoU[0], placeholders_metric[3]: IoU[1]}, train_writer, epoch)
 
         print(accuracy)
         print(IoU)
