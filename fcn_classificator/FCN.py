@@ -11,7 +11,7 @@ from fcn_classificator.metrics import create_metrics_for_one, generate_image
 NUM_CLASSES = 3
 IMAGE_SHAPE = (512, 384)
 OUTPUT_SHAPE = (IMAGE_SHAPE[0] * 1, IMAGE_SHAPE[1] * 1)
-EPOCHS = 10
+EPOCHS = 30
 BATCH_SIZE = 8
 DROPOUT = 0.5
 
@@ -149,7 +149,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
              image_shape, output_shape, scalars_metrics, placeholders_metric, metrics_nodes):
 
     train_writer = tf.summary.FileWriter(os.path.join('train_summaries', 'drugi'), sess.graph)
-    learning_rate_value = 0.005
+    learning_rate_value = 0.001
     performance_summaries = tf.summary.merge_all(scope='performance')
 
     print("START TRAINING")
@@ -177,15 +177,15 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
             IoU.append([acc["iou_m_1"], acc["iou_m_2"]])
 
         test_accuracy = []
-        for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
-            test_accuracy.append(
-                sess.run([metrics_nodes], feed_dict={input_image: X_batch, correct_label: gt_batch,
-                                                     keep_prob: 1.0, }))
-
-            if i == 0:
-                img = sess.run(images, feed_dict={input_image: X_batch, correct_label: gt_batch,
-                                                  keep_prob: 1.0, })
-                train_writer.add_summary(img, 1)
+        # for i, (X_batch, gt_batch) in enumerate(get_batches_fn(batch_size)):
+        #     test_accuracy.append(
+        #         sess.run([metrics_nodes], feed_dict={input_image: X_batch, correct_label: gt_batch,
+        #                                              keep_prob: 1.0, }))
+        #
+        #     if i == 0:
+        #         img = sess.run(images, feed_dict={input_image: X_batch, correct_label: gt_batch,
+        #                                           keep_prob: 1.0, })
+        #         train_writer.add_summary(img, 1)
 
         # print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
         # print(test_accuracy)
@@ -194,7 +194,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
 
         accuracy = np.nan_to_num(np.nanmean(accuracy, axis=0))
         IoU = np.nan_to_num(np.nanmean(IoU, axis=0))
-        performance.write_summaries(sess, performance_summaries, {placeholders_metric[0]: accuracy[0], placeholders_metric[1]: accuracy[1], placeholders_metric[2]: IoU[0], placeholders_metric[3]: IoU[1]}, train_writer, epoch)
+        # performance.write_summaries(sess, performance_summaries, {placeholders_metric[0]: accuracy[0], placeholders_metric[1]: accuracy[1], placeholders_metric[2]: IoU[0], placeholders_metric[3]: IoU[1]}, train_writer, epoch)
 
         print(accuracy)
         print(IoU)
@@ -272,4 +272,4 @@ def run(training_dir='../training_set_500'):
 
 
 if __name__ == '__main__':
-    run()
+    run('123')
