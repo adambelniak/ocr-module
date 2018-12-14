@@ -188,9 +188,9 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op,
             #     train_writer.add_summary(img, 1)
 
         # print('step %d, training accuracy %g' % (i, train_accuracy / math.ceil(len(x_test_images) / BATCH_SIZE)))
-        print(test_accuracy)
-        if epoch % 10 == 0:
-            train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
+        # print(test_accuracy)
+        # if epoch % 10 == 0:
+        #     train_writer.add_run_metadata(run_metadata, 'step%d' % epoch)
 
         accuracy = np.nan_to_num(np.nanmean(accuracy, axis=0))
         IoU = np.nan_to_num(np.nanmean(IoU, axis=0))
